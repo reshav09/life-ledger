@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: money-tracker-config
+  namespace: money-tracker
+data:
+  DB_HOST: "money-tracker-db"
+  DB_PORT: "3306"
+  DB_NAME: "money_tracker"
+  DB_USER: "money_user"
+  PORT: "4000"
+  NODE_ENV: "production"
+  SESSION_HOURS: "4"

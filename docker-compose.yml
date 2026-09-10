@@ -1,0 +1,100 @@
+services:
+  db:
+    image: mariadb:11
+    container_name: money-tracker-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootpass}
+      MYSQL_DATABASE: ${DB_NAME:-money_tracker}
+      MYSQL_USER: ${DB_USER:-money_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-money_pass}
+    volumes:
+      - money_tracker_db_data:/var/lib/mysql
+      - ./backend/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "127.0.0.1:3307:3306" # bind to localhost only — prevents LAN exposure
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: money-tracker-app
+    restart: unless-stopped
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USER: ${DB_USER:-money_user}
+      DB_PASSWORD: ${DB_PASSWORD:-money_pass}
+      DB_NAME: ${DB_NAME:-money_tracker}
+      PORT: 4000
+      NODE_ENV: production
+      AUTH_USERNAME: ${AUTH_USERNAME:-admin}
+      AUTH_PASSWORD: ${AUTH_PASSWORD:-changeme}
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
+      SESSION_HOURS: ${SESSION_HOURS:-4}
+    ports:
+      - "5000:4000" # HTTP: http://localhost:5000 or http://<laptop-ip>:5000
+      - "5443:4443" # HTTPS: https://localhost:5443 or https://<laptop-ip>:5443 (Mobile mic enabled)
+    volumes:
+      - ./backups:/app/backups # weekly + manual backups land here, directly on your laptop
+      - ./health-reports:/app/uploads/health-reports # uploaded health/lab reports land here
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - backend
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ── Optional: Nginx reverse proxy for production ──
+  # Uncomment to add gzip, caching, rate limiting, and security headers.
+  # nginx:
+  #   image: nginx:alpine
+  #   container_name: money-tracker-nginx
+  #   restart: unless-stopped
+  #   ports:
+  #     - "80:80"
+  #   volumes:
+  #     - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+  #   depends_on:
+  #     - app
+  #   networks:
+  #     - backend
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         memory: 64M
+  #         cpus: '0.25'
+
+networks:
+  backend:
+    driver: bridge
+
+volumes:
+  money_tracker_db_data:
