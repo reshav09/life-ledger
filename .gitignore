@@ -47,3 +47,7 @@ Thumbs.db
 .vscode/
 *.swp
 *.swo
+
+# Local personal reference
+GIT_SETUP_DETAILS.md
+*.local.md
