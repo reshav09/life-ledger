@@ -1,7 +1,0 @@
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: money-tracker
-  labels:
-    app.kubernetes.io/name: money-tracker
-    app.kubernetes.io/part-of: money-tracker

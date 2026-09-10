@@ -81,15 +81,13 @@ life-ledger/
 │   ├── src/components/     # Reusable UI cards, modals, themed dialog provider
 │   └── src/index.css       # Complete CSS design token system
 ├── docker-compose.yml      # Multi-container orchestration (App + MariaDB)
-├── Dockerfile              # Multi-stage production build (Node + Vite)
-├── k8s/                    # Kubernetes production manifests
-└── nginx/                  # Production reverse proxy config (gzip, rate-limiting)
+└── Dockerfile              # Multi-stage production build (Node + Vite)
 ```
 
 - **Frontend**: React 18, Vite, React Router 6, Recharts, Fraunces & Inter typography, CSS custom properties.
 - **Backend**: Node.js 20, Express, MySQL2, Tini, OpenSSL, Cron-based automatic backup scheduler.
 - **Database**: MariaDB 11 with persistent named volumes and healthcheck validation.
-- **Deployment**: Docker Compose, Kubernetes manifests, and optional Nginx reverse proxy.
+- **Deployment**: Docker Compose (runs locally with zero cloud dependencies).
 
 ---
 
@@ -161,29 +159,6 @@ Log in using the `AUTH_USERNAME` and `AUTH_PASSWORD` configured in your `.env`.
 - **Automatic Backups**: The system automatically generates a complete JSON dump of your database every Sunday at midnight into `./backups/`.
 - **Manual Backups**: Navigate to **Settings ➔ Backup & Data** to download a snapshot anytime.
 - **Instant Restore**: Easily migrate or restore your database by uploading any valid backup JSON file directly via the Settings page.
-
----
-
-## ☸️ Kubernetes Deployment (Optional)
-
-Production-ready Kubernetes manifests are provided under the `k8s/` directory:
-1. Create the namespace:
-   ```bash
-   kubectl apply -f k8s/namespace.yaml
-   ```
-2. Copy and configure secrets:
-   ```bash
-   cp k8s/secret.yaml.example k8s/secret.yaml
-   # Edit k8s/secret.yaml with your base64-encoded credentials
-   kubectl apply -f k8s/secret.yaml
-   ```
-3. Deploy database, configuration, and app:
-   ```bash
-   kubectl apply -f k8s/configmap.yaml
-   kubectl apply -f k8s/mariadb.yaml
-   kubectl apply -f k8s/app.yaml
-   kubectl apply -f k8s/ingress.yaml
-   ```
 
 ---
 
