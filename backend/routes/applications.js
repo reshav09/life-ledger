@@ -23,12 +23,15 @@ router.get('/', async (req, res) => {
 // Create
 router.post('/', async (req, res) => {
   try {
-    const { name, role = '', type = 'job', status = 'planning', deadline, url = '', notes = '', priority = 'medium' } = req.body;
+    const { name, role = '', type = 'job', status = 'planning', deadline, url = '', notes = '', priority = 'medium', opportunity_id = null } = req.body;
     if (!name) return res.status(400).json({ error: 'Name is required' });
     const [result] = await pool.query(
-      'INSERT INTO applications (name, role, type, status, deadline, url, notes, priority) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [name, role, type, status, deadline || null, url, notes, priority]
+      'INSERT INTO applications (name, role, type, status, deadline, url, notes, priority, opportunity_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [name, role, type, status, deadline || null, url, notes, priority, opportunity_id || null]
     );
+    if (opportunity_id) {
+      await pool.query('UPDATE jobhunt_opportunities SET is_applied = 1, applied_at = NOW() WHERE id = ?', [opportunity_id]);
+    }
     res.json({ id: result.insertId });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -38,11 +41,11 @@ router.post('/', async (req, res) => {
 // Update
 router.put('/:id', async (req, res) => {
   try {
-    const { name, role, type, status, deadline, url, notes, priority } = req.body;
+    const { name, role, type, status, deadline, url, notes, priority, opportunity_id = null } = req.body;
     await pool.query(
-      `UPDATE applications SET name=?, role=?, type=?, status=?, deadline=?, url=?, notes=?, priority=?
+      `UPDATE applications SET name=?, role=?, type=?, status=?, deadline=?, url=?, notes=?, priority=?, opportunity_id=?
        WHERE id=?`,
-      [name, role, type, status, deadline || null, url, notes, priority, req.params.id]
+      [name, role, type, status, deadline || null, url, notes, priority, opportunity_id || null, req.params.id]
     );
     res.json({ success: true });
   } catch (err) {
@@ -53,7 +56,14 @@ router.put('/:id', async (req, res) => {
 // Delete
 router.delete('/:id', async (req, res) => {
   try {
+    const [[appRow]] = await pool.query('SELECT opportunity_id FROM applications WHERE id = ?', [req.params.id]);
     await pool.query('DELETE FROM applications WHERE id = ?', [req.params.id]);
+    if (appRow?.opportunity_id) {
+      const [rem] = await pool.query('SELECT id FROM applications WHERE opportunity_id = ?', [appRow.opportunity_id]);
+      if (rem.length === 0) {
+        await pool.query('UPDATE jobhunt_opportunities SET is_applied = 0, applied_at = NULL WHERE id = ?', [appRow.opportunity_id]);
+      }
+    }
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

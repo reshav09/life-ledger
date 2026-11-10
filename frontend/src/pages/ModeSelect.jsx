@@ -27,7 +27,7 @@ export default function ModeSelect() {
           <button className="mode-card" onClick={() => chooseMode('routine')}>
             <div className="mode-card-icon">⏱️</div>
             <div className="mode-card-title">Routine & Schedule</div>
-            <div className="mode-card-desc">Own your 24 hours — daily routine, time tracking, and application pipeline</div>
+            <div className="mode-card-desc">Own your 24 hours — daily routine, time tracking, and deep work blocks</div>
             <div className="mode-card-cta">Open →</div>
           </button>
 
@@ -35,6 +35,13 @@ export default function ModeSelect() {
             <div className="mode-card-icon">🥗</div>
             <div className="mode-card-title">Diet & Health</div>
             <div className="mode-card-desc">Food, fitness & health intelligence — meals, weight, gym, and reports</div>
+            <div className="mode-card-cta">Open →</div>
+          </button>
+
+          <button className="mode-card" onClick={() => chooseMode('jobhunt')}>
+            <div className="mode-card-icon">🎯</div>
+            <div className="mode-card-title">Job Hunt</div>
+            <div className="mode-card-desc">Your opportunity radar — organization registry, eligibility scoring, and application pipeline</div>
             <div className="mode-card-cta">Open →</div>
           </button>
         </div>

@@ -18,6 +18,7 @@ const LEDGER_META = {
   routine:  { label: '📋 Routine Ledger',   color: 'var(--brass)' },
   money:    { label: '💰 Money Ledger',     color: '#5B7FBA' },
   health:   { label: '🏥 Health Ledger',    color: '#D97757' },
+  jobhunt:  { label: '🎯 Job Hunt',         color: '#4A9E6E' },
   ai:       { label: '🤖 AI Analyzer',      color: '#7A6FB0' },
   settings: { label: '⚙️ Settings',         color: 'var(--ink-soft)' },
   general:  { label: '📒 Ledger',           color: 'var(--green)' },

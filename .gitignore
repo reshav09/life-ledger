@@ -9,6 +9,8 @@ frontend/dist/
 .vite/
 .cache/
 *.tsbuildinfo
+__pycache__/
+*.pyc
 
 # Environment & credentials (CRITICAL - NEVER COMMIT)
 .env

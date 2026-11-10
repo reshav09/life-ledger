@@ -134,7 +134,7 @@ const MIGRATIONS = [
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(200) NOT NULL,
     role VARCHAR(200) DEFAULT '',
-    type ENUM('job','exam','other') NOT NULL DEFAULT 'job',
+    type VARCHAR(32) NOT NULL DEFAULT 'job',
     status ENUM('planning','applied','interview','offer','rejected','cleared') NOT NULL DEFAULT 'planning',
     deadline DATE DEFAULT NULL,
     url VARCHAR(500) DEFAULT '',
@@ -582,7 +582,238 @@ const MIGRATIONS = [
     (7,  'current', 'Pre-study snack', '19:45', 'Masala Safola Oats OR sprouts chaat with lemon',                                          'Light fuel for study block',                      'general',                   7),
     (8,  'current', 'Dinner',          '20:00', 'Eggs (2) or paneer + 1 roti + sabzi (lauki/tinda/parval) — keep light',                   'Easy to digest, liver-friendly, not heavy before study','liver,vitamin_d',     8),
     (9,  'current', 'Before bed',      '22:15', 'Warm turmeric milk (haldi doodh) with a pinch of black pepper',                           'Anti-inflammatory + calcium + sleep quality',     'calcium,liver',             9),
-    (10, 'current', 'All day',         '',      'Water 3.5-4 litres consistently (NOT big infrequent gulps) + 1 glass lemon water',         'Hydration + flush uric acid + kidney health',     'uric_acid,general',         10)`
+    (10, 'current', 'All day',         '',      'Water 3.5-4 litres consistently (NOT big infrequent gulps) + 1 glass lemon water',         'Hydration + flush uric acid + kidney health',     'uric_acid,general',         10)`,
+
+  // ==================== Job Hunt Ledger ====================
+  // Your eligibility & preference profile (singleton row)
+  `CREATE TABLE IF NOT EXISTS jobhunt_profile (
+    id INT PRIMARY KEY DEFAULT 1,
+    full_name VARCHAR(200) DEFAULT '',
+    degree VARCHAR(200) DEFAULT '',
+    branch VARCHAR(200) DEFAULT '',
+    graduation_year INT DEFAULT NULL,
+    experience_years DECIMAL(3,1) DEFAULT 0,
+    age INT DEFAULT NULL,
+    skills TEXT DEFAULT '',
+    certifications TEXT DEFAULT '',
+    pref_min_ctc DECIMAL(12,2) DEFAULT NULL,
+    pref_locations TEXT DEFAULT '',
+    pref_job_types TEXT DEFAULT '',
+    pref_sectors TEXT DEFAULT '',
+    pref_remote_ok TINYINT(1) DEFAULT 1,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  )`,
+  `INSERT IGNORE INTO jobhunt_profile (id, degree, branch, skills, pref_sectors, pref_job_types) VALUES (
+    1,
+    'B.Sc Data Science (IIT Madras)',
+    'Computer Science / Data Science',
+    '["Python","JavaScript","Docker","Kubernetes","AWS","GCP","Azure","Node.js","React","Linux","Git","DSA","System Design"]',
+    '["IT","Defence","Cloud","DevOps","Research","PSU"]',
+    '["govt","psu","defence","private","research"]'
+  )`,
+
+  // Organization Registry — the source of truth for where opportunities come from
+  `CREATE TABLE IF NOT EXISTS jobhunt_organizations (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(300) NOT NULL,
+    short_name VARCHAR(100) DEFAULT '',
+    sector VARCHAR(100) DEFAULT '',
+    org_type VARCHAR(100) DEFAULT '',
+    parent_org_id INT DEFAULT NULL,
+    careers_url VARCHAR(500) DEFAULT '',
+    notification_url VARCHAR(500) DEFAULT '',
+    pdf_page_url VARCHAR(500) DEFAULT '',
+    website VARCHAR(500) DEFAULT '',
+    notes TEXT DEFAULT '',
+    quality_score INT DEFAULT NULL,
+    poll_frequency_days INT DEFAULT 7,
+    last_checked_at TIMESTAMP DEFAULT NULL,
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  )`,
+
+  // Discovered opportunities (manual or future-automated)
+  `CREATE TABLE IF NOT EXISTS jobhunt_opportunities (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    org_id INT DEFAULT NULL,
+    title VARCHAR(500) NOT NULL,
+    source_url VARCHAR(500) DEFAULT '',
+    source_type ENUM('careers_page','pdf','portal','employment_news','manual','other') DEFAULT 'manual',
+    required_degree VARCHAR(300) DEFAULT '',
+    required_branch VARCHAR(300) DEFAULT '',
+    min_experience_years DECIMAL(3,1) DEFAULT NULL,
+    max_age INT DEFAULT NULL,
+    min_age INT DEFAULT NULL,
+    required_skills TEXT DEFAULT '',
+    vacancies INT DEFAULT NULL,
+    location VARCHAR(300) DEFAULT '',
+    pay_scale VARCHAR(200) DEFAULT '',
+    ctc_min DECIMAL(12,2) DEFAULT NULL,
+    ctc_max DECIMAL(12,2) DEFAULT NULL,
+    application_deadline DATE DEFAULT NULL,
+    exam_date DATE DEFAULT NULL,
+    apply_url VARCHAR(500) DEFAULT '',
+    job_type ENUM('govt','psu','defence','private','research','contractual','other') DEFAULT 'other',
+    category ENUM('job','exam','internship','fellowship','project','other') DEFAULT 'job',
+    eligibility_pct INT DEFAULT NULL,
+    profile_match_pct INT DEFAULT NULL,
+    compensation_score INT DEFAULT NULL,
+    career_potential_score INT DEFAULT NULL,
+    competition_signal INT DEFAULT NULL,
+    application_difficulty_score INT DEFAULT NULL,
+    org_quality_score INT DEFAULT NULL,
+    deadline_urgency_score INT DEFAULT NULL,
+    opportunity_score INT DEFAULT NULL,
+    recommendation ENUM('apply_now','worth_applying','investigate','ignore') DEFAULT NULL,
+    content_hash VARCHAR(64) DEFAULT '',
+    raw_text TEXT DEFAULT '',
+    notes TEXT DEFAULT '',
+    is_new TINYINT(1) NOT NULL DEFAULT 1,
+    is_archived TINYINT(1) NOT NULL DEFAULT 0,
+    discovered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  )`,
+
+  // Change detection hashes — for future automated crawling
+  `CREATE TABLE IF NOT EXISTS jobhunt_content_hashes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    org_id INT NOT NULL,
+    content_hash VARCHAR(64) NOT NULL,
+    title_hint VARCHAR(300) DEFAULT '',
+    source_url VARCHAR(500) DEFAULT '',
+    first_seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uniq_org_hash (org_id, content_hash)
+  )`,
+
+  // ── Multi-Education, Work History, Projects & Publications Support ──
+  `ALTER TABLE jobhunt_profile ADD COLUMN IF NOT EXISTS phone VARCHAR(50) DEFAULT ''`,
+  `ALTER TABLE jobhunt_profile ADD COLUMN IF NOT EXISTS email VARCHAR(200) DEFAULT ''`,
+  `ALTER TABLE jobhunt_profile ADD COLUMN IF NOT EXISTS linkedin VARCHAR(255) DEFAULT ''`,
+  `ALTER TABLE jobhunt_profile ADD COLUMN IF NOT EXISTS github VARCHAR(255) DEFAULT ''`,
+  `ALTER TABLE jobhunt_profile ADD COLUMN IF NOT EXISTS summary TEXT DEFAULT ''`,
+  `ALTER TABLE jobhunt_profile ADD COLUMN IF NOT EXISTS education TEXT DEFAULT ''`,
+  `ALTER TABLE jobhunt_profile ADD COLUMN IF NOT EXISTS experience TEXT DEFAULT ''`,
+  `ALTER TABLE jobhunt_profile ADD COLUMN IF NOT EXISTS projects TEXT DEFAULT ''`,
+  `ALTER TABLE jobhunt_profile ADD COLUMN IF NOT EXISTS publications TEXT DEFAULT ''`,
+  `ALTER TABLE jobhunt_profile ADD COLUMN IF NOT EXISTS achievements TEXT DEFAULT ''`,
+
+  // Seed Reshav Sharma's full profile from resume
+  `UPDATE jobhunt_profile SET
+    full_name = 'Reshav Sharma',
+    phone = '8839750668',
+    email = 'reshav2004b@gmail.com',
+    linkedin = 'https://linkedin.com/in/reshav-sharma-844320173',
+    github = 'https://github.com/reshav09',
+    summary = 'Cloud/DevOps Engineer with hands-on production experience across AWS, Azure, and GCP. Currently driving multi-cloud FinOps and cost-optimization work delivering approximately $180K in annualized client savings; previously automated infrastructure and resolved live production incidents for government ERP systems serving 141 municipalities. Strong foundation in Python, Bash, Infrastructure-as-Code, and cloud cost management.',
+    degree = 'B.Tech CSE (SIRT) & BS Data Science (IIT Madras)',
+    branch = 'Computer Science / Data Science',
+    graduation_year = 2026,
+    experience_years = 1.5,
+    age = 22,
+    education = '[{\"institution\":\"Sagar Institute of Research and Technology\",\"degree\":\"B.Tech\",\"branch\":\"Computer Science and Engineering\",\"cgpa\":\"8.19\",\"period\":\"Aug 2022 – Jul 2026\",\"location\":\"Bhopal, Madhya Pradesh\",\"status\":\"In Progress\"},{\"institution\":\"Indian Institute of Technology, Madras\",\"degree\":\"BS\",\"branch\":\"Data Science and Applications\",\"cgpa\":\"\",\"period\":\"Aug 2023 – Expected 2027\",\"location\":\"Chennai, Tamil Nadu\",\"status\":\"In Progress\"}]',
+    experience = '[{\"company\":\"FinOps Engineer\",\"role\":\"FinOps Engineer\",\"location\":\"Noida, India\",\"period\":\"Feb 2026 – Present\",\"highlights\":[\"Perform cloud cost optimization and wastage-tracking analysis across 6 client accounts spanning AWS, Azure, and GCP, identifying and implementing an aggregate ~$15,000/month (~$180K annualized) in verified savings.\",\"Delivered the two largest single-account reductions — $5,400/month and $5,000/month — through infrastructure rightsizing and elimination of idle/underutilized resources.\",\"Support ongoing FinOps decision-making with recurring cost-visibility reporting across a multi-cloud environment.\"]},{\"company\":\"Netlink Software Group America Inc\",\"role\":\"DevOps Intern — MP Government ENP2.0 e-Nagar Palika Project\",\"location\":\"Bhopal, Madhya Pradesh\",\"period\":\"Dec 2024 – Jul 2025\",\"highlights\":[\"Automated server health monitoring and resource reporting for ERP servers across 141 municipalities, reducing manual analysis time by 80%; presented key metrics to the Deputy Commissioner (UADD).\",\"Built access control and onboarding automation scripts in ERPNext, decreasing ERP rollout time by 50%.\",\"Diagnosed critical production login failures using trace logs, enabling a 24-hour fix and preventing service downtime.\",\"Contributed to compliance automation integrating Aadhaar & Samagra APIs within government cloud systems.\",\"Deployed on containerized services like Docker and Kubernetes; automated server monitoring and integrated with Prometheus and Grafana for system observability.\"]}]',
+    projects = '[{\"title\":\"Automated Data Pipeline & Analysis Platform\",\"tech_stack\":\"Python, FastAPI, Gemini LLM, Docker\",\"link\":\"https://github.com/reshav09/TDS-Project-2-May-2025\",\"description\":\"Built automated data ingestion and processing pipelines to extract, clean, and structure heterogeneous datasets. Designed fault-tolerant execution logic with retry mechanisms to maintain reliability during large-scale data processing.\"},{\"title\":\"Virtual Tutor for TDS Course\",\"tech_stack\":\"Flask, RAG, OpenAI, Docker, YAML\",\"link\":\"\",\"description\":\"Engineered a low-latency, Dockerized Flask API for real-time academic Q&A using Retrieval-Augmented Generation (RAG). Designed end-to-end pipeline with structured data indexing, OpenAI integration, and automated YAML testing.\"},{\"title\":\"Plant Disease Prediction System\",\"tech_stack\":\"Python, Custom CNNs, ResNet50, TensorFlow, scikit-learn\",\"link\":\"\",\"description\":\"Designed end-to-end modeling pipelines including data preprocessing, feature normalization, and train–validation evaluation protocols. Analyzed model behavior using confusion matrices and feature-level visualizations.\"},{\"title\":\"Real Estate Price Prediction\",\"tech_stack\":\"Flask, XGBoost, MP Gov Data 2018–2024\",\"link\":\"\",\"description\":\"Developed regression and ensemble models to predict asset prices using multi-year structured government datasets, improving predictive accuracy by 25%.\"} ]',
+    publications = '[{\"title\":\"Solving Transportation Problem Using Python\",\"authors\":\"Prof. Sarla Raigar, Reshav Sharma\",\"venue\":\"International Research Journal of Modernization in Engineering Technology and Science (IRJMETS)\",\"year\":\"May 2025\",\"description\":\"Formulated balanced transportation problems using linear programming constraints and matrix representations. Designed and implemented multiple solution algorithms (NWCM, LCM, Supply–Demand methods) in Python.\"},{\"title\":\"SR Method for Balanced and Unbalanced Assignment Problems\",\"authors\":\"Reshav Sharma\",\"venue\":\"Publication in Process (Under Review)\",\"year\":\"2025\",\"description\":\"Proposed a novel algorithm for solving balanced and unbalanced assignment problems as a special case of transportation models. Developed mathematical formulations and benchmarked performance against the Hungarian Method.\"},{\"title\":\"Use of Mathematics in Real-World Research\",\"authors\":\"Reshav Sharma\",\"venue\":\"Government of India Copyright Registered\",\"year\":\"Sep 2024\",\"description\":\"Explored mathematical influence from ancient civilizations to modern industry use-cases and computing.\"} ]',
+    achievements = '[{\"title\":\"Best Student Research Award\",\"organization\":\"IEEE International Conference\",\"year\":\"Sep 2024\",\"description\":\"Ranked in top 1% of student research papers at IEEE International Conference.\"},{\"title\":\"Star Student (2025–2026)\",\"organization\":\"Sagar Institute of Research and Technology\",\"year\":\"2025–2026\",\"description\":\"Recognized as Student of the Year for academic and leadership excellence.\"},{\"title\":\"Leadership Award\",\"organization\":\"John Snow Inc True Sage Foundation EduKiran Project\",\"year\":\"Aug 2023\",\"description\":\"Recognized for leading education initiatives benefiting underserved communities.\"},{\"title\":\"Coordinator — Educational Outreach\",\"organization\":\"John Snow India Pvt. Ltd. (JSIPL)\",\"year\":\"Jan 2024 – May 2024\",\"description\":\"Led 50+ volunteers, improving student English proficiency scores by ~30% and implemented Google Read Along.\"},{\"title\":\"Discipline Committee Head & CII YI Yuva Co-Chair\",\"organization\":\"CII Yuva & SIRT\",\"year\":\"2024–2025\",\"description\":\"Directed discipline and logistics for 15+ campus events (1,000+ attendees); led 12 teams under CII Yuva.\"} ]',
+    skills = \'["Python","Bash","SQL","C++","JavaScript","AWS","Azure","GCP","FinOps","Cloud Cost Optimization","Cost Reporting","Docker","Kubernetes","Linux","Git","Prometheus","Grafana","FastAPI","Streamlit","ERPNext","Frappe","Machine Learning","DSA","System Design","Computer Networking","Observability","CI/CD"]\',
+    certifications = \'["Azure AZ-900 Series","GCP Workshop","IEEE Best Student Research Award","Govt of India Copyright Registered","Star Student 2025-2026"]\',
+    pref_locations = \'["Noida","Bhopal","Bangalore","Pune","Delhi NCR","Hyderabad","Chennai","Remote"]\',
+    pref_sectors = \'["Cloud","FinOps","DevOps","IT","Defence","Research","PSU"]\',
+    pref_job_types = \'["private","psu","govt","research","defence"]\',
+    pref_min_ctc = 1200000.00
+   WHERE id = 1`,
+
+  // Extend source_type in jobhunt_opportunities to VARCHAR(50)
+  `ALTER TABLE jobhunt_opportunities MODIFY COLUMN source_type VARCHAR(50) DEFAULT 'manual'`,
+
+  // Phase 4: Track applications from opportunities
+  `ALTER TABLE applications ADD COLUMN IF NOT EXISTS opportunity_id INT DEFAULT NULL`,
+  `ALTER TABLE applications ADD INDEX IF NOT EXISTS idx_app_opp (opportunity_id)`,
+  `ALTER TABLE jobhunt_opportunities ADD COLUMN IF NOT EXISTS is_applied TINYINT(1) DEFAULT 0`,
+  `ALTER TABLE jobhunt_opportunities ADD COLUMN IF NOT EXISTS applied_at TIMESTAMP NULL DEFAULT NULL`,
+
+  // Phase 5: Category Hubs & Private Companies (India >=20LPA, EU/SG Visa >=$100k)
+  `ALTER TABLE jobhunt_organizations ADD COLUMN IF NOT EXISTS category_group VARCHAR(50) NOT NULL DEFAULT 'psu'`,
+  `ALTER TABLE jobhunt_organizations ADD COLUMN IF NOT EXISTS country VARCHAR(100) NOT NULL DEFAULT 'India'`,
+  `ALTER TABLE jobhunt_organizations ADD COLUMN IF NOT EXISTS region VARCHAR(100) NOT NULL DEFAULT 'India'`,
+  `ALTER TABLE jobhunt_organizations ADD COLUMN IF NOT EXISTS visa_sponsored TINYINT(1) NOT NULL DEFAULT 0`,
+  `ALTER TABLE jobhunt_organizations ADD COLUMN IF NOT EXISTS currency VARCHAR(10) NOT NULL DEFAULT 'INR'`,
+  `ALTER TABLE jobhunt_organizations ADD COLUMN IF NOT EXISTS min_ctc_threshold DECIMAL(12,2) DEFAULT NULL`,
+  `ALTER TABLE jobhunt_opportunities ADD COLUMN IF NOT EXISTS category_group VARCHAR(50) NOT NULL DEFAULT 'psu'`,
+  `ALTER TABLE jobhunt_opportunities ADD COLUMN IF NOT EXISTS country VARCHAR(100) NOT NULL DEFAULT 'India'`,
+  `ALTER TABLE jobhunt_opportunities ADD COLUMN IF NOT EXISTS region VARCHAR(100) NOT NULL DEFAULT 'India'`,
+  `ALTER TABLE jobhunt_opportunities ADD COLUMN IF NOT EXISTS visa_sponsored TINYINT(1) NOT NULL DEFAULT 0`,
+  `ALTER TABLE jobhunt_opportunities ADD COLUMN IF NOT EXISTS compensation_display VARCHAR(100) NOT NULL DEFAULT ''`,
+  // Phase 6: Job Posting Recency & Automated Expiration Rules
+  `ALTER TABLE jobhunt_opportunities ADD COLUMN IF NOT EXISTS posted_date DATE NULL DEFAULT NULL`,
+  `ALTER TABLE jobhunt_opportunities ADD INDEX IF NOT EXISTS idx_opp_posted_date (posted_date)`,
+  `UPDATE jobhunt_opportunities SET posted_date = DATE(discovered_at) WHERE posted_date IS NULL`,
+
+  // Phase 7: ATS Direct Ingestion, Confidence Chains, Ghost Job Prevention & Feedback Loop
+  `ALTER TABLE jobhunt_organizations ADD COLUMN IF NOT EXISTS ats_type VARCHAR(32) NOT NULL DEFAULT 'custom_scrape'`,
+  `ALTER TABLE jobhunt_organizations ADD COLUMN IF NOT EXISTS ats_id VARCHAR(128) NULL DEFAULT NULL`,
+  `ALTER TABLE jobhunt_organizations ADD COLUMN IF NOT EXISTS last_crawl_status VARCHAR(64) NULL DEFAULT NULL`,
+  `ALTER TABLE jobhunt_organizations ADD COLUMN IF NOT EXISTS last_jobs_found INT NOT NULL DEFAULT 0`,
+  `ALTER TABLE jobhunt_organizations ADD COLUMN IF NOT EXISTS last_successful_pull TIMESTAMP NULL DEFAULT NULL`,
+
+  `ALTER TABLE jobhunt_opportunities ADD COLUMN IF NOT EXISTS confidence_metadata JSON NULL DEFAULT NULL`,
+  `ALTER TABLE jobhunt_opportunities ADD COLUMN IF NOT EXISTS is_active_link TINYINT(1) NOT NULL DEFAULT 1`,
+  `ALTER TABLE jobhunt_opportunities ADD COLUMN IF NOT EXISTS last_verified_at TIMESTAMP NULL DEFAULT NULL`,
+
+  `ALTER TABLE applications ADD COLUMN IF NOT EXISTS scoring_features_snapshot JSON NULL DEFAULT NULL`,
+  // Expand applications.type from ENUM to VARCHAR(32) to support internships, fellowships, and diverse pathways
+  `ALTER TABLE applications MODIFY COLUMN type VARCHAR(32) NOT NULL DEFAULT 'job'`,
+
+  // Phase 8: Career-Intelligence Automated Interview & Exam Preparation Hub
+  `CREATE TABLE IF NOT EXISTS jobhunt_interview_prep (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    org_id INT NULL,
+    org_name VARCHAR(255) NOT NULL,
+    opportunity_id INT NULL,
+    role_title VARCHAR(255) NOT NULL,
+    role_category VARCHAR(50) NOT NULL DEFAULT 'sde',
+    process_type VARCHAR(50) NOT NULL DEFAULT 'private_tech',
+    total_stages INT NOT NULL DEFAULT 1,
+    confidence ENUM('high', 'medium', 'based_on_notification', 'insufficient_data') NOT NULL DEFAULT 'medium',
+    confidence_reason TEXT,
+    stages LONGTEXT,
+    exam_pattern LONGTEXT,
+    prep_roadmap LONGTEXT,
+    curated_resources LONGTEXT,
+    sources LONGTEXT,
+    user_notes TEXT,
+    user_progress LONGTEXT,
+    last_researched_at TIMESTAMP NULL DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_prep_org (org_id),
+    INDEX idx_prep_role (role_title),
+    INDEX idx_prep_category (role_category),
+    INDEX idx_prep_confidence (confidence)
+  )`,
+
+  `CREATE TABLE IF NOT EXISTS jobhunt_question_bank (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    category VARCHAR(50) NOT NULL,
+    company_tag VARCHAR(100) DEFAULT 'General',
+    title VARCHAR(500) NOT NULL,
+    difficulty ENUM('easy', 'medium', 'hard') DEFAULT 'medium',
+    topic VARCHAR(100) NOT NULL,
+    url VARCHAR(500) DEFAULT NULL,
+    question_text TEXT NOT NULL,
+    answer_text LONGTEXT DEFAULT NULL,
+    frequency_pct DECIMAL(5,2) DEFAULT NULL,
+    source_repo VARCHAR(100) NOT NULL,
+    is_solved TINYINT(1) DEFAULT 0,
+    solved_at TIMESTAMP NULL DEFAULT NULL,
+    user_notes TEXT DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_qb_category (category),
+    INDEX idx_qb_company (company_tag),
+    INDEX idx_qb_topic (topic),
+    INDEX idx_qb_diff (difficulty)
+  )`
 ];
 
 const fs = require('fs');
@@ -650,6 +881,46 @@ async function runMigrations() {
     console.log(`Successfully applied ${appliedCount} new database migration(s).`);
   } else {
     console.log('Database schema is up to date (no new migrations needed).');
+  }
+
+  // Ensure PSU & Premier Org registry is populated
+  try {
+    const [[{ orgCount }]] = await pool.query('SELECT COUNT(*) AS orgCount FROM jobhunt_organizations WHERE is_active = 1');
+    if (orgCount < 10) {
+      console.log('Seeding initial PSU & Govt R&D organizations registry...');
+      const { seedOrganizations } = require('../scripts/seedPSUs');
+      await seedOrganizations(pool);
+    }
+  } catch (err) {
+    console.warn('Could not run initial PSU org seed:', err.message);
+  }
+
+  // Ensure high-CTC recruitment opportunities are populated only if table is empty
+  try {
+    const [[{ oppCount }]] = await pool.query('SELECT COUNT(*) AS oppCount FROM jobhunt_opportunities WHERE is_archived = 0');
+    if (oppCount === 0) {
+      console.log('Seeding initial high-CTC (>15 LPA) PSU opportunities...');
+      const { seedOpportunities } = require('../scripts/seedOpportunities');
+      await seedOpportunities(pool);
+    }
+  } catch (err) {
+    console.warn('Could not run initial PSU opportunities seed:', err.message);
+  }
+
+  // Ensure tier list & user curated companies & verified opportunities are synced
+  try {
+    const { seedTierListCompanies } = require('../scripts/seedTierListCompanies');
+    await seedTierListCompanies(pool);
+  } catch (err) {
+    console.warn('Could not run seedTierListCompanies:', err.message);
+  }
+
+  // Ensure verified ATS platform mappings are configured
+  try {
+    const { syncATSOrgs } = require('../scripts/syncATSOrgs');
+    await syncATSOrgs(pool);
+  } catch (err) {
+    console.warn('Could not run syncATSOrgs:', err.message);
   }
 }
 

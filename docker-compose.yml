@@ -52,7 +52,6 @@ services:
       SESSION_HOURS: ${SESSION_HOURS:-4}
     ports:
       - "5000:4000" # HTTP: http://localhost:5000 or http://<laptop-ip>:5000
-      - "5443:4443" # HTTPS: https://localhost:5443 or https://<laptop-ip>:5443 (Mobile mic enabled)
     volumes:
       - ./backups:/app/backups # weekly + manual backups land here, directly on your laptop
       - ./health-reports:/app/uploads/health-reports # uploaded health/lab reports land here

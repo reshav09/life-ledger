@@ -19,7 +19,9 @@ const TABLES = [
   'health_profile', 'diet_goals', 'health_reports', 'health_measurements',
   'food_entries', 'water_intake_logs', 'gym_purchase_classifications',
   // ── AI Analyzer ──
-  'ai_settings', 'ai_insights', 'ai_chat_messages'
+  'ai_settings', 'ai_insights', 'ai_chat_messages',
+  // ── Job Hunt Ledger ──
+  'jobhunt_profile', 'jobhunt_organizations', 'jobhunt_opportunities', 'jobhunt_content_hashes'
 ];
 
 async function runBackup() {

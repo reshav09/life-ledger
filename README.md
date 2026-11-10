@@ -136,9 +136,7 @@ docker compose up --build -d
 ```
 
 ### 4. Access the App
-Open your web browser:
-- **HTTP**: [http://localhost:5000](http://localhost:5000)
-- **HTTPS**: [https://localhost:5443](https://localhost:5443) *(enables microphone voice inputs on mobile)*
+Open your web browser at [http://localhost:5000](http://localhost:5000).
 
 Log in using the `AUTH_USERNAME` and `AUTH_PASSWORD` configured in your `.env`.
 

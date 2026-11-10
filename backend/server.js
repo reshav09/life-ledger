@@ -96,6 +96,13 @@ app.use('/api/backup', require('./routes/backup'));
 app.use('/api/routine', require('./routes/routine'));
 app.use('/api/applications', require('./routes/applications'));
 
+// Job Hunt Ledger — organization discovery, opportunity scoring, career profile, AI extraction & crawler
+app.use('/api/jobhunt/profile', require('./routes/jobhuntProfile'));
+app.use('/api/jobhunt/orgs', require('./routes/jobhuntOrgs'));
+app.use('/api/jobhunt/opportunities', require('./routes/jobhuntOpportunities'));
+app.use('/api/jobhunt/prep', require('./routes/jobhuntPrep'));
+app.use('/api/jobhunt', require('./routes/jobhuntIngest'));
+
 // Diet & Health Ledger — reads from Money/Routine where relevant, never writes to them
 app.use('/api/health-profile', require('./routes/health'));
 app.use('/api/diet', require('./routes/diet'));
@@ -119,61 +126,26 @@ app.get('*', (req, res) => {
 app.use(errorHandler);
 
 let server;
-let httpsServer;
-
-const HTTPS_PORT = process.env.HTTPS_PORT || 4443;
-
-function getOrCreateCert() {
-  const certDir = path.join(__dirname, 'certs');
-  const certPath = path.join(certDir, 'cert.pem');
-  const keyPath = path.join(certDir, 'key.pem');
-
-  if (!fs.existsSync(certDir)) {
-    try { fs.mkdirSync(certDir, { recursive: true }); } catch (e) {}
-  }
-
-  if (!fs.existsSync(certPath) || !fs.existsSync(keyPath)) {
-    try {
-      const { execSync } = require('child_process');
-      execSync(`openssl req -x509 -newkey rsa:2048 -keyout "${keyPath}" -out "${certPath}" -days 3650 -nodes -subj "/CN=money-tracker"`, {
-        stdio: 'ignore'
-      });
-    } catch (err) {
-      console.warn('Could not auto-generate SSL cert:', err.message);
-    }
-  }
-
-  if (fs.existsSync(certPath) && fs.existsSync(keyPath)) {
-    try {
-      return {
-        key: fs.readFileSync(keyPath),
-        cert: fs.readFileSync(certPath)
-      };
-    } catch (err) {
-      return null;
-    }
-  }
-  return null;
-}
 
 (async () => {
   await runMigrationsWithRetry();
   scheduleAutoBackup();
 
+  // Start Job Hunt Automated Crawler
+  const { startBackgroundCrawler } = require('./services/jobhuntCrawler');
+  startBackgroundCrawler();
+
+  // Run Job Hunt Opportunities Lifecycle Maintenance (Purge expired deadlines, archive stale private >15d / govt >20d)
+  const { runOpportunitiesLifecycle } = require('./services/jobhuntLifecycle');
+  runOpportunitiesLifecycle().catch((err) => console.error('[JobHunt Lifecycle Startup Error]:', err.message));
+  setInterval(() => {
+    runOpportunitiesLifecycle().catch((err) => console.error('[JobHunt Lifecycle Interval Error]:', err.message));
+  }, 60 * 60 * 1000);
+
   // Start HTTP Server
   server = app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Money tracker HTTP running on port ${PORT} (http://localhost:5000)`);
+    console.log(`Life Ledger running on port ${PORT} (http://localhost:5000)`);
   });
-
-  // Start HTTPS Server (Self-signed SSL for mobile phone microphone access)
-  const https = require('https');
-  const credentials = getOrCreateCert();
-  if (credentials) {
-    httpsServer = https.createServer(credentials, app);
-    httpsServer.listen(HTTPS_PORT, '0.0.0.0', () => {
-      console.log(`Money tracker HTTPS running on port ${HTTPS_PORT} (https://localhost:5443 or https://<your-ip>:5443 for Mobile Mic)`);
-    });
-  }
 })();
 
 // ── Graceful shutdown ──
@@ -181,9 +153,6 @@ function getOrCreateCert() {
 // finish cleanly and DB connections are released before the process exits.
 async function shutdown(signal) {
   console.log(`\n${signal} received — shutting down gracefully…`);
-  if (httpsServer) {
-    try { httpsServer.close(); } catch (e) {}
-  }
   if (server) {
     server.close(async () => {
       try {

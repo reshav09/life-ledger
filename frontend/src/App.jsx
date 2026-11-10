@@ -30,7 +30,14 @@ const HealthProfile = lazy(() => import('./pages/HealthProfile.jsx'));
 const DietSpending = lazy(() => import('./pages/DietSpending.jsx'));
 const AIAnalyzer = lazy(() => import('./pages/AIAnalyzer.jsx'));
 const DietSettings = lazy(() => import('./pages/DietSettings.jsx'));
+const RoutineSettings = lazy(() => import('./pages/RoutineSettings.jsx'));
 const CurrentDiet = lazy(() => import('./pages/CurrentDiet.jsx'));
+const JobHuntDashboard = lazy(() => import('./pages/JobHuntDashboard.jsx'));
+const JobHuntOrgs = lazy(() => import('./pages/JobHuntOrgs.jsx'));
+const JobHuntOpportunities = lazy(() => import('./pages/JobHuntOpportunities.jsx'));
+const JobHuntProfile = lazy(() => import('./pages/JobHuntProfile.jsx'));
+const JobHuntPrep = lazy(() => import('./pages/JobHuntPrep.jsx'));
+const JobHuntSettings = lazy(() => import('./pages/JobHuntSettings.jsx'));
 
 
 const MONEY_NAV = [
@@ -49,8 +56,17 @@ const ROUTINE_NAV = [
   { to: '/', label: 'Today', num: '01', end: true },
   { to: '/routine', label: 'My Routine', num: '02' },
   { to: '/timelog', label: 'Time Log', num: '03' },
-  { to: '/applications', label: 'Applications', num: '04' },
-  { to: '/settings', label: 'Settings', num: '05' }
+  { to: '/settings', label: 'Settings', num: '04' }
+];
+
+const JOBHUNT_NAV = [
+  { to: '/', label: 'Radar', num: '01', end: true },
+  { to: '/applications', label: 'My Applications', num: '02' },
+  { to: '/opportunities', label: 'Opportunities', num: '03' },
+  { to: '/orgs', label: 'Organizations', num: '04' },
+  { to: '/profile', label: 'My Profile', num: '05' },
+  { to: '/prep', label: 'Prep Hub', num: '06' },
+  { to: '/settings', label: 'Settings', num: '07' }
 ];
 
 const DIET_NAV = [
@@ -80,7 +96,7 @@ export default function App() {
   const [quickDumpOpen, setQuickDumpOpen] = useState(false);
   const logoutTimerRef = useRef(null);
   const { hiddenMode, toggleHiddenMode, resetPrivacy } = usePrivacy();
-  const { mode, clearMode } = useAppMode();
+  const { mode, setMode, clearMode } = useAppMode();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -113,8 +129,8 @@ export default function App() {
       const tag = document.activeElement?.tagName;
       const isTyping = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || document.activeElement?.isContentEditable;
       
-      // Quick dump shortcut (Alt+D or Ctrl+J or pressing J when not typing)
-      if ((e.altKey && (e.key === 'd' || e.key === 'D')) || (e.ctrlKey && (e.key === 'j' || e.key === 'J')) || (!isTyping && (e.key === 'j' || e.key === 'J'))) {
+      // Quick dump shortcut (Alt+D or Ctrl+J or pressing J when not typing) - disabled in jobhunt mode
+      if (mode !== 'jobhunt' && ((e.altKey && (e.key === 'd' || e.key === 'D')) || (e.ctrlKey && (e.key === 'j' || e.key === 'J')) || (!isTyping && (e.key === 'j' || e.key === 'J')))) {
         e.preventDefault();
         setQuickDumpOpen((prev) => !prev);
         return;
@@ -183,12 +199,13 @@ export default function App() {
   }
 
   const msLeft = expiresAt ? expiresAt - now : 0;
-  const NAV = mode === 'routine' ? ROUTINE_NAV : mode === 'diet' ? DIET_NAV : MONEY_NAV;
   const isMoneyMode = mode === 'money';
   const isDietMode = mode === 'diet';
+  const isJobHuntMode = mode === 'jobhunt';
+  const NAV = isJobHuntMode ? JOBHUNT_NAV : mode === 'routine' ? ROUTINE_NAV : isDietMode ? DIET_NAV : MONEY_NAV;
 
-  const brandSub = isMoneyMode ? 'Personal Money Tracker' : isDietMode ? 'Diet & Health' : 'Routine & Schedule';
-  const modeIcon = isMoneyMode ? '💰' : isDietMode ? '🥗' : '⏱️';
+  const brandSub = isMoneyMode ? 'Money Tracker' : isDietMode ? 'Diet & Health' : isJobHuntMode ? 'Job Hunt Radar' : 'Routine & Schedule';
+  const modeIcon = isMoneyMode ? '💰' : isDietMode ? '🥗' : isJobHuntMode ? '🎯' : '⏱️';
 
   return (
     <div className="app-shell">
@@ -209,10 +226,6 @@ export default function App() {
                 {hiddenMode ? '🙈' : '👁️'}
               </button>
             )}
-            <button className="quick-btn" onClick={openModeSwitcher}
-              title="Switch app">
-              🔀
-            </button>
             <button className="quick-btn" onClick={logout} title={`Log out (session ends in ${formatCountdown(msLeft)})`}>
               ⎋
             </button>
@@ -220,6 +233,42 @@ export default function App() {
               {navOpen ? '✕' : '☰'}
             </button>
           </div>
+        </div>
+
+        {/* Global Module Switcher Tabs: Quick 1-click access to all 4 ledgers */}
+        <div className="sidebar-app-tabs">
+          <button
+            type="button"
+            className={`sidebar-app-tab ${mode === 'money' ? 'active' : ''}`}
+            onClick={() => { setMode('money'); navigate('/'); }}
+            title="Money Ledger"
+          >
+            💰 Money
+          </button>
+          <button
+            type="button"
+            className={`sidebar-app-tab ${mode === 'routine' ? 'active' : ''}`}
+            onClick={() => { setMode('routine'); navigate('/'); }}
+            title="Routine & Schedule"
+          >
+            ⏱️ Routine
+          </button>
+          <button
+            type="button"
+            className={`sidebar-app-tab ${mode === 'diet' ? 'active' : ''}`}
+            onClick={() => { setMode('diet'); navigate('/'); }}
+            title="Diet & Health"
+          >
+            🥗 Diet
+          </button>
+          <button
+            type="button"
+            className={`sidebar-app-tab ${mode === 'jobhunt' ? 'active' : ''}`}
+            onClick={() => { setMode('jobhunt'); navigate('/'); }}
+            title="Job Hunt Radar"
+          >
+            🎯 Job Hunt
+          </button>
         </div>
 
         <nav className={`sidebar-nav ${navOpen ? 'nav-open' : ''}`}>
@@ -236,22 +285,6 @@ export default function App() {
           ))}
         </nav>
         <div className="sidebar-foot">
-          Runs entirely on your laptop. Nothing leaves this machine.
-          {isMoneyMode && (
-            <div style={{ fontSize: 11, color: '#6E7A8A', marginTop: 6 }}>Press <b>N</b> to add an entry, <b>/</b> to search</div>
-          )}
-          {/* Mode switcher */}
-          <button
-            className="sidebar-mode-switch"
-            onClick={openModeSwitcher}
-            title="Switch to a different ledger"
-          >
-            <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-              <span>{modeIcon}</span>
-              Switch app
-            </span>
-            <span>→</span>
-          </button>
           {/* Privacy toggle (money mode only) */}
           {isMoneyMode && (
             <button
@@ -297,40 +330,53 @@ export default function App() {
             <Route path="/ai" element={<AIAnalyzer />} />
             <Route path="/settings" element={<DietSettings />} />
           </Routes>
+        ) : isJobHuntMode ? (
+          <Routes>
+            <Route path="/" element={<JobHuntDashboard />} />
+            <Route path="/applications" element={<Applications />} />
+            <Route path="/opportunities" element={<JobHuntOpportunities />} />
+            <Route path="/orgs" element={<JobHuntOrgs />} />
+            <Route path="/profile" element={<JobHuntProfile />} />
+            <Route path="/prep" element={<JobHuntPrep />} />
+            <Route path="/settings" element={<JobHuntSettings />} />
+          </Routes>
         ) : (
           <Routes>
             <Route path="/" element={<RoutineToday />} />
             <Route path="/routine" element={<RoutineTemplate />} />
             <Route path="/timelog" element={<TimeLog />} />
-            <Route path="/applications" element={<Applications />} />
-            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/settings" element={<RoutineSettings />} />
           </Routes>
         )}
         </Suspense>
       </main>
 
-      {/* Unified Floating Quick Log Action Button (Both PC & Mobile) */}
-      <button
-        type="button"
-        className="app-quick-log-fab"
-        onClick={() => setQuickDumpOpen(true)}
-        title="⚡ Quick Log (Voice & Text) — Press 'J'"
-        aria-label="Open Daily Quick Log"
-      >
-        <span className="app-quick-log-fab-icon">⚡</span>
-        <span className="app-quick-log-fab-text">Quick Log</span>
-        <span className="app-quick-log-fab-shortcut">J</span>
-      </button>
+      {/* Unified Floating Quick Log Action Button (Money, Routine, Diet only — not Job Hunt) */}
+      {mode !== 'jobhunt' && (
+        <>
+          <button
+            type="button"
+            className="app-quick-log-fab"
+            onClick={() => setQuickDumpOpen(true)}
+            title="⚡ Quick Log (Voice & Text) — Press 'J'"
+            aria-label="Open Daily Quick Log"
+          >
+            <span className="app-quick-log-fab-icon">⚡</span>
+            <span className="app-quick-log-fab-text">Quick Log</span>
+            <span className="app-quick-log-fab-shortcut">J</span>
+          </button>
 
-      <QuickDumpModal
-        isOpen={quickDumpOpen}
-        onClose={() => setQuickDumpOpen(false)}
-        onLogged={() => {
-          // Dispatch a custom event so active pages can refresh their data
-          // without losing state (e.g. selected date)
-          window.dispatchEvent(new CustomEvent('quick-log-saved'));
-        }}
-      />
+          <QuickDumpModal
+            isOpen={quickDumpOpen}
+            onClose={() => setQuickDumpOpen(false)}
+            onLogged={() => {
+              // Dispatch a custom event so active pages can refresh their data
+              // without losing state (e.g. selected date)
+              window.dispatchEvent(new CustomEvent('quick-log-saved'));
+            }}
+          />
+        </>
+      )}
     </div>
   );
 }
