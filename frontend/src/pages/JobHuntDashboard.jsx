@@ -456,6 +456,15 @@ export default function JobHuntDashboard() {
                                 🔗 Portal ↗
                               </a>
                             )}
+                            <button
+                              type="button"
+                              className="btn btn-sm"
+                              style={{ background: 'rgba(217, 119, 87, 0.1)', color: 'var(--rust)', borderColor: 'rgba(217, 119, 87, 0.3)', fontWeight: 600 }}
+                              onClick={() => navigate(`/workspace?oppId=${opp.id}`)}
+                              title="Tailor ATS resume & factual cover letter for this role"
+                            >
+                              📄 Tailor CV ↗
+                            </button>
                           </>
                         );
                       })()}

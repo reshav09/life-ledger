@@ -101,6 +101,7 @@ app.use('/api/jobhunt/profile', require('./routes/jobhuntProfile'));
 app.use('/api/jobhunt/orgs', require('./routes/jobhuntOrgs'));
 app.use('/api/jobhunt/opportunities', require('./routes/jobhuntOpportunities'));
 app.use('/api/jobhunt/prep', require('./routes/jobhuntPrep'));
+app.use('/api/jobhunt/documents', require('./routes/jobhuntDocuments'));
 app.use('/api/jobhunt', require('./routes/jobhuntIngest'));
 
 // Diet & Health Ledger — reads from Money/Routine where relevant, never writes to them

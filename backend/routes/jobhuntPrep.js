@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const prepService = require('../services/jobhuntPrepIntelligence');
 const questionBankService = require('../services/jobhuntQuestionBank');
+const mockService = require('../services/jobhuntMockInterview');
 
 // GET /api/jobhunt/prep — list all plans with optional filters
 router.get('/', async (req, res, next) => {
@@ -152,6 +153,56 @@ router.delete('/:id', async (req, res, next) => {
   try {
     const result = await prepService.deletePrepPlan(req.params.id);
     res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── Interactive Grounded Mock Interview Sessions (M7) ──
+// POST /api/jobhunt/prep/mock/start
+router.post('/mock/start', async (req, res, next) => {
+  try {
+    const { opportunityId, applicationId, packageId, sessionType } = req.body;
+    const session = await mockService.startMockSession({
+      opportunityId,
+      applicationId,
+      packageId,
+      sessionType
+    });
+    res.status(201).json(session);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/jobhunt/prep/mock/:id/answer
+router.post('/mock/:id/answer', async (req, res, next) => {
+  try {
+    const { questionIndex, answer } = req.body;
+    const result = await mockService.submitQuestionAnswer(req.params.id, questionIndex, answer);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/jobhunt/prep/mock/:id
+router.get('/mock/:id', async (req, res, next) => {
+  try {
+    const session = await mockService.getMockSession(req.params.id);
+    if (!session) return res.status(404).json({ error: 'Mock session not found' });
+    res.json(session);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/jobhunt/prep/mock — list sessions
+router.get('/mock', async (req, res, next) => {
+  try {
+    const { opportunityId, applicationId } = req.query;
+    const sessions = await mockService.listMockSessions({ opportunityId, applicationId });
+    res.json(sessions);
   } catch (err) {
     next(err);
   }

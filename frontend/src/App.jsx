@@ -38,6 +38,7 @@ const JobHuntOpportunities = lazy(() => import('./pages/JobHuntOpportunities.jsx
 const JobHuntProfile = lazy(() => import('./pages/JobHuntProfile.jsx'));
 const JobHuntPrep = lazy(() => import('./pages/JobHuntPrep.jsx'));
 const JobHuntSettings = lazy(() => import('./pages/JobHuntSettings.jsx'));
+const JobHuntApplicationWorkspace = lazy(() => import('./pages/JobHuntApplicationWorkspace.jsx'));
 
 
 const MONEY_NAV = [
@@ -62,11 +63,12 @@ const ROUTINE_NAV = [
 const JOBHUNT_NAV = [
   { to: '/', label: 'Radar', num: '01', end: true },
   { to: '/applications', label: 'My Applications', num: '02' },
-  { to: '/opportunities', label: 'Opportunities', num: '03' },
-  { to: '/orgs', label: 'Organizations', num: '04' },
-  { to: '/profile', label: 'My Profile', num: '05' },
-  { to: '/prep', label: 'Prep Hub', num: '06' },
-  { to: '/settings', label: 'Settings', num: '07' }
+  { to: '/workspace', label: 'Workspace', num: '03' },
+  { to: '/opportunities', label: 'Opportunities', num: '04' },
+  { to: '/orgs', label: 'Organizations', num: '05' },
+  { to: '/profile', label: 'My Profile', num: '06' },
+  { to: '/prep', label: 'Prep Hub', num: '07' },
+  { to: '/settings', label: 'Settings', num: '08' }
 ];
 
 const DIET_NAV = [
@@ -334,6 +336,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<JobHuntDashboard />} />
             <Route path="/applications" element={<Applications />} />
+            <Route path="/workspace" element={<JobHuntApplicationWorkspace />} />
             <Route path="/opportunities" element={<JobHuntOpportunities />} />
             <Route path="/orgs" element={<JobHuntOrgs />} />
             <Route path="/profile" element={<JobHuntProfile />} />

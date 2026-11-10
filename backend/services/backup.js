@@ -21,7 +21,9 @@ const TABLES = [
   // ── AI Analyzer ──
   'ai_settings', 'ai_insights', 'ai_chat_messages',
   // ── Job Hunt Ledger ──
-  'jobhunt_profile', 'jobhunt_organizations', 'jobhunt_opportunities', 'jobhunt_content_hashes'
+  'jobhunt_profile', 'jobhunt_organizations', 'jobhunt_opportunities', 'jobhunt_content_hashes',
+  'jobhunt_interview_prep', 'jobhunt_question_bank', 'jobhunt_evidence_claims',
+  'jobhunt_document_packages', 'jobhunt_document_reviews', 'jobhunt_application_events', 'jobhunt_mock_sessions'
 ];
 
 async function runBackup() {

@@ -1338,6 +1338,18 @@ export default function JobHuntOpportunities() {
                   <button
                     type="button"
                     className="btn btn-sm"
+                    style={{ background: 'rgba(217, 119, 87, 0.1)', color: 'var(--rust)', border: '1px solid rgba(217, 119, 87, 0.3)', fontWeight: 600 }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/workspace?oppId=${opp.id}`);
+                    }}
+                    title="Tailor ATS resume & factual cover letter for this role"
+                  >
+                    📄 Workspace ↗
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-sm"
                     style={{ background: 'rgba(139, 92, 246, 0.1)', color: '#8b5cf6', border: '1px solid rgba(139, 92, 246, 0.25)', fontWeight: 600 }}
                     onClick={(e) => {
                       e.stopPropagation();

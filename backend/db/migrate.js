@@ -813,6 +813,89 @@ const MIGRATIONS = [
     INDEX idx_qb_company (company_tag),
     INDEX idx_qb_topic (topic),
     INDEX idx_qb_diff (difficulty)
+  )`,
+
+  // Phase 9: Dossier & AI Job Search Workflow Integration
+  `CREATE TABLE IF NOT EXISTS jobhunt_evidence_claims (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    category VARCHAR(50) NOT NULL,
+    source_title VARCHAR(255) NOT NULL,
+    claim_text TEXT NOT NULL,
+    metrics_json JSON NULL,
+    skills_tags JSON NULL,
+    is_verified TINYINT(1) NOT NULL DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_ev_cat (category),
+    INDEX idx_ev_verified (is_verified)
+  )`,
+
+  `CREATE TABLE IF NOT EXISTS jobhunt_document_packages (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    opportunity_id INT NULL,
+    application_id INT NULL,
+    org_name VARCHAR(255) NOT NULL,
+    role_title VARCHAR(255) NOT NULL,
+    version INT NOT NULL DEFAULT 1,
+    status ENUM('draft', 'reviewed', 'approved', 'submitted', 'archived') NOT NULL DEFAULT 'draft',
+    tailored_resume_markdown MEDIUMTEXT NOT NULL,
+    tailored_cover_letter_markdown MEDIUMTEXT NULL,
+    target_job_description MEDIUMTEXT NULL,
+    key_skills_addressed JSON NULL,
+    evidence_claims_used JSON NULL,
+    submitted_at TIMESTAMP NULL DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_pkg_opp (opportunity_id),
+    INDEX idx_pkg_app (application_id),
+    INDEX idx_pkg_status (status)
+  )`,
+
+  `CREATE TABLE IF NOT EXISTS jobhunt_document_reviews (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    package_id INT NOT NULL,
+    review_score INT NOT NULL DEFAULT 100,
+    hallucination_risk ENUM('none', 'low', 'medium', 'high') NOT NULL DEFAULT 'none',
+    unsupported_claims JSON NULL,
+    missing_requirements JSON NULL,
+    critique_notes TEXT NULL,
+    reviewer_agent VARCHAR(64) NOT NULL DEFAULT 'dossier_fact_reviewer',
+    reviewed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_rev_pkg (package_id)
+  )`,
+
+  `CREATE TABLE IF NOT EXISTS jobhunt_application_events (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    application_id INT NOT NULL,
+    event_type VARCHAR(50) NOT NULL,
+    event_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    title VARCHAR(255) NOT NULL,
+    notes TEXT NULL,
+    metadata_json JSON NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_evt_app (application_id),
+    INDEX idx_evt_date (event_date)
+  )`,
+
+  `CREATE TABLE IF NOT EXISTS jobhunt_mock_sessions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    opportunity_id INT NULL,
+    application_id INT NULL,
+    package_id INT NULL,
+    role_title VARCHAR(255) NOT NULL,
+    org_name VARCHAR(255) NOT NULL,
+    stage_name VARCHAR(100) NOT NULL DEFAULT 'Technical Round',
+    status ENUM('active', 'completed', 'abandoned') NOT NULL DEFAULT 'active',
+    questions_json JSON NOT NULL,
+    current_question_index INT NOT NULL DEFAULT 0,
+    answers_json JSON NULL,
+    overall_feedback TEXT NULL,
+    overall_score INT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_mock_opp (opportunity_id),
+    INDEX idx_mock_app (application_id),
+    INDEX idx_mock_status (status)
   )`
 ];
 

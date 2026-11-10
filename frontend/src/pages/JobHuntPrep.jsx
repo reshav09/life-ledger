@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { api } from '../api';
+import JobHuntMockInterviewRunner from '../components/JobHuntMockInterviewRunner';
 
 const PROCESS_TYPE_CONFIG = {
   psu_cbt_exam: {
@@ -285,6 +286,7 @@ export default function JobHuntPrep() {
         { id: 'stages', label: '🏛️ CBT Scheme & Board Stages', badge: `${activePlan.stages?.length || 0} Stages` },
         { id: 'psu_cbt', label: '⚡ PSU / Govt CS PYQs & Numericals', badge: 'GATE / ISRO / BARC' },
         { id: 'neetcode', label: '💻 Core CS Data Structures', badge: 'NeetCode Patterns' },
+        { id: 'mock_interview', label: '🎙️ Grounded Mock Sessions', badge: 'Board & Tech AI' },
         { id: 'notes', label: '📝 Candidate Exam Journal', badge: 'Revision Notes' }
       ];
     }
@@ -295,6 +297,7 @@ export default function JobHuntPrep() {
         { id: 'company_leetcode', label: `💻 ${activePlan.org_name} Coding Bank`, badge: 'Real Problems' },
         { id: 'quant_systems', label: '⚡ Low-Latency C++ & Concurrency Bank', badge: 'Lock-Free & MESI' },
         { id: 'neetcode', label: '🧠 NeetCode 150 Core Patterns', badge: '18 Patterns' },
+        { id: 'mock_interview', label: '🎙️ Grounded Mock Sessions', badge: 'Quant & Systems' },
         { id: 'notes', label: '📝 Candidate Prep Journal', badge: 'Debrief Notes' }
       ];
     }
@@ -305,6 +308,7 @@ export default function JobHuntPrep() {
       { id: 'company_leetcode', label: `💻 ${activePlan.org_name} LeetCode Bank`, badge: 'Company Tagged' },
       { id: 'devops', label: '🐧 DevOps, Cloud & SRE Bank', badge: 'DevOps Exercises' },
       { id: 'neetcode', label: '🧠 NeetCode 150 Core Patterns', badge: '18 Patterns' },
+      { id: 'mock_interview', label: '🎙️ Grounded Mock Sessions', badge: 'STAR & Tech AI' },
       { id: 'notes', label: '📝 Candidate Prep Journal', badge: 'Debrief Notes' }
     ];
   }, [activePlan, isPSU, isQuant]);
@@ -1428,6 +1432,16 @@ export default function JobHuntPrep() {
                 </div>
               )}
             </div>
+          )}
+
+          {/* ── TAB: GROUNDED MOCK INTERVIEW RUNNER (M7) ── */}
+          {activeTab === 'mock_interview' && (
+            <JobHuntMockInterviewRunner
+              plan={activePlan}
+              orgName={activePlan.org_name}
+              roleTitle={activePlan.role_title}
+              opportunityId={activePlan.opportunity_id}
+            />
           )}
 
           {/* ── TAB: CANDIDATE PREP JOURNAL ── */}

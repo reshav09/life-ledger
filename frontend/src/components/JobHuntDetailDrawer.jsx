@@ -642,6 +642,18 @@ export default function JobHuntDetailDrawer({
             <button
               type="button"
               className="btn btn-sm"
+              style={{ background: 'rgba(217, 119, 87, 0.12)', color: 'var(--rust)', border: '1px solid rgba(217, 119, 87, 0.3)', fontWeight: 600 }}
+              onClick={() => {
+                navigate(`/workspace?oppId=${opp.id}`);
+                onClose();
+              }}
+              title="Tailor ATS resume & factual cover letter for this role"
+            >
+              📄 Tailor CV & Letter ↗
+            </button>
+            <button
+              type="button"
+              className="btn btn-sm"
               style={{ background: 'rgba(139, 92, 246, 0.12)', color: '#8b5cf6', border: '1px solid rgba(139, 92, 246, 0.25)', fontWeight: 600 }}
               onClick={() => {
                 navigate(`/prep?orgId=${opp.org_id || ''}&role=${encodeURIComponent(opp.title)}`);

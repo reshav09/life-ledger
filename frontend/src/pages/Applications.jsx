@@ -386,7 +386,15 @@ export default function Applications() {
                     >
                       ↩ Re-Open to Applied
                     </button>
-                    <div style={{ display: 'flex', gap: 6 }}>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <Link
+                        to={`/workspace?appId=${item.id}${item.opportunity_id ? `&oppId=${item.opportunity_id}` : ''}`}
+                        className="btn btn-sm"
+                        style={{ fontSize: 11, background: 'rgba(217, 119, 87, 0.08)', color: 'var(--rust)', borderColor: 'rgba(217, 119, 87, 0.25)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                        title="Open Dossier Application Workspace"
+                      >
+                        📄 Workspace ↗
+                      </Link>
                       <button className="icon-btn" onClick={() => startEdit(item)} title="Edit application details or notes">Edit</button>
                       <button className="icon-btn" onClick={() => remove(item.id)} title="Delete record permanently">Del</button>
                     </div>
@@ -524,7 +532,15 @@ export default function Applications() {
                           )}
                         </div>
 
-                        <div style={{ display: 'flex', gap: 6, marginLeft: 'auto' }}>
+                        <div style={{ display: 'flex', gap: 6, marginLeft: 'auto', alignItems: 'center' }}>
+                          <Link
+                            to={`/workspace?appId=${item.id}${item.opportunity_id ? `&oppId=${item.opportunity_id}` : ''}`}
+                            className="btn btn-sm"
+                            style={{ fontSize: 11, background: 'rgba(217, 119, 87, 0.08)', color: 'var(--rust)', borderColor: 'rgba(217, 119, 87, 0.25)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                            title="Open Dossier Application Workspace"
+                          >
+                            📄 Workspace ↗
+                          </Link>
                           <button className="icon-btn" onClick={() => startEdit(item)}>Edit</button>
                           <button className="icon-btn" onClick={() => remove(item.id)}>Del</button>
                         </div>
