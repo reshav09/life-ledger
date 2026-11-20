@@ -14,3 +14,4 @@ services:
         value: production
       - key: SESSION_HOURS
         value: 24
+
