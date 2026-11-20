@@ -75,7 +75,14 @@ async function scoreAndPersist(oppId, preloadedThresholds = null) {
 
 // ── Helper: Retrieve filtered top opportunities and total match count for radar ──
 async function getRadarOpportunities({ filter = 'all', category_group = '', sector = '', limit = 50 } = {}) {
-  const whereClauses = ['op.is_archived = 0', '(op.is_verified_active = 1 AND (op.is_active_link != 0 OR op.is_active_link IS NULL))'];
+  const whereClauses = [
+    'op.is_archived = 0',
+    '(op.is_verified_active = 1 AND (op.is_active_link != 0 OR op.is_active_link IS NULL))',
+    '(op.visa_sponsored = 0 OR op.visa_sponsored IS NULL)',
+    "(op.category_group != 'quant_hft' OR op.category_group IS NULL)",
+    "(op.country = 'India' OR op.location LIKE '%India%' OR op.location LIKE '%Remote%' OR op.location LIKE '%Anywhere%' OR op.country IS NULL)",
+    '(op.ctc_min >= 500000 OR op.ctc_max >= 500000 OR (op.ctc_min IS NULL AND op.ctc_max IS NULL))'
+  ];
   const params = [];
 
   if (filter === 'apply_now') {
@@ -152,7 +159,7 @@ async function getRadarOpportunities({ filter = 'all', category_group = '', sect
 // ── Dashboard aggregation ──
 router.get('/dashboard', async (req, res) => {
   try {
-    const verifiedCondition = 'op.is_archived = 0 AND op.is_verified_active = 1 AND (op.is_active_link != 0 OR op.is_active_link IS NULL)';
+    const verifiedCondition = "op.is_archived = 0 AND op.is_verified_active = 1 AND (op.is_active_link != 0 OR op.is_active_link IS NULL) AND (op.visa_sponsored = 0 OR op.visa_sponsored IS NULL) AND (op.category_group != 'quant_hft' OR op.category_group IS NULL) AND (op.country = 'India' OR op.location LIKE '%India%' OR op.location LIKE '%Remote%' OR op.location LIKE '%Anywhere%' OR op.country IS NULL) AND (op.ctc_min >= 500000 OR op.ctc_max >= 500000 OR (op.ctc_min IS NULL AND op.ctc_max IS NULL))";
     const [total] = await pool.query(`SELECT COUNT(*) AS cnt FROM jobhunt_opportunities op WHERE ${verifiedCondition}`);
     const [applyNow] = await pool.query(`SELECT COUNT(*) AS cnt FROM jobhunt_opportunities op WHERE op.recommendation = 'apply_now' AND ${verifiedCondition}`);
     const [worthApplying] = await pool.query(`SELECT COUNT(*) AS cnt FROM jobhunt_opportunities op WHERE op.recommendation = 'worth_applying' AND ${verifiedCondition}`);
@@ -319,6 +326,13 @@ router.get('/', async (req, res) => {
       conditions.push('(op.eligibility_pct IS NULL OR op.eligibility_pct > 0)');
       // Strictly enforce verified existence: exclude dead links, ghost jobs, and non-existent jobs
       conditions.push('(op.is_verified_active = 1 AND (op.is_active_link != 0 OR op.is_active_link IS NULL))');
+      // Exclude foreign visa-sponsored jobs & non-Indian locations without remote
+      conditions.push('(op.visa_sponsored = 0 OR op.visa_sponsored IS NULL)');
+      conditions.push("(op.country = 'India' OR op.location LIKE '%India%' OR op.location LIKE '%Remote%' OR op.location LIKE '%Anywhere%' OR op.country IS NULL)");
+      // Exclude Quant / HFT hedge funds
+      conditions.push("(op.category_group != 'quant_hft' OR op.category_group IS NULL)");
+      // Strictly enforce >= 5 LPA minimum compensation threshold
+      conditions.push('(op.ctc_min >= 500000 OR op.ctc_max >= 500000 OR (op.ctc_min IS NULL AND op.ctc_max IS NULL))');
     }
 
     if (job_type) { conditions.push('op.job_type = ?'); params.push(job_type); }

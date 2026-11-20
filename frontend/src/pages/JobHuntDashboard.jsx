@@ -194,15 +194,13 @@ export default function JobHuntDashboard() {
   const displayOpps = topOpps;
 
   const categoryOptions = [
-    { value: '', label: 'All Sectors' },
-    { value: 'startup', label: 'Startups & Scaleups', icon: '🚀' },
-    { value: 'research_internship', label: 'Research Fellowships', icon: '🔬' },
-    { value: 'psu', label: 'PSUs', icon: '🏭' },
-    { value: 'govt', label: 'Govt & R&D', icon: '🏛️' },
-    { value: 'private_in', label: 'Indian Tech', icon: '🇮🇳' },
-    { value: 'quant_hft', label: 'Quant & HFT', icon: '⚡' },
-    { value: 'private_eu', label: 'EU Visa', icon: '🇪🇺' },
-    { value: 'private_global', label: 'Global Remote', icon: '🌐' }
+    { value: '', label: 'All Targets (> ₹5 LPA)' },
+    { value: 'psu', label: 'PSUs (Public Sector)', icon: '🏭' },
+    { value: 'govt', label: 'Govt & e-Governance', icon: '🏛️' },
+    { value: 'research_internship', label: 'Research & Labs', icon: '🔬' },
+    { value: 'startup', label: 'Indian Tech Startups', icon: '🚀' },
+    { value: 'private_in', label: 'Indian Tech & Services', icon: '🇮🇳' },
+    { value: 'private_global', label: 'Remote / Hybrid India', icon: '💻' }
   ];
 
   return (

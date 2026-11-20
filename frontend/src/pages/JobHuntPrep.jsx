@@ -201,32 +201,28 @@ export default function JobHuntPrep() {
   // Category matching helper
   const isPlanInCat = useCallback((p, cat) => {
     if (cat === 'all') return true;
+    const nameLower = (p.org_name || '').toLowerCase();
     if (cat === 'startup') {
       const startupKeys = [
-        'supabase', 'linear', 'mistral', 'elevenlabs', 'cognition', 'perplexity',
-        'harvey', 'kalshi', 'lovable', 'leya', 'deel', 'remote', 'wolt', 'scale ai',
-        'whatnot', 'automattic', 'duckduckgo', 'vercel', 'posthog', 'langchain',
-        'resend', 'vapi', 'pinecone', 'cursor', 'anysphere', 'anthropic', 'openai',
-        'safe superintelligence', 'physical intelligence'
+        'razorpay', 'swiggy', 'zerodha', 'phonepe', 'groww', 'cred', 'meesho',
+        'zepto', 'urban company', 'ather energy', 'porter', 'postman', 'browserstack'
       ];
-      return startupKeys.some(k => p.org_name.toLowerCase().includes(k)) || p.org_category_group === 'startup';
+      return startupKeys.some(k => nameLower.includes(k)) || p.org_category_group === 'startup';
     }
     if (cat === 'psu') {
-      return p.process_type === 'psu_cbt_exam' || p.org_category_group === 'psu' || p.org_category_group === 'govt';
+      const psuKeys = ['bhel', 'bel', 'c-dac', 'cdac', 'ecil', 'coal india', 'bharat electronics', 'bharat heavy'];
+      return p.process_type === 'psu_cbt_exam' || p.org_category_group === 'psu' || psuKeys.some(k => nameLower.includes(k));
     }
-    if (cat === 'quant') {
-      return p.process_type === 'quant_hft' || p.org_category_group === 'quant_hft' || p.role_category === 'quant_data';
-    }
-    if (cat === 'eu') {
-      const isEUCountry = ['netherlands', 'germany', 'switzerland', 'luxembourg', 'poland', 'sweden', 'ireland', 'united kingdom', 'uk', 'france', 'spain', 'finland'].some(c => (p.org_country || '').toLowerCase().includes(c));
-      const isEUKnown = ['asml', 'adyen', 'optiver', 'booking.com', 'databricks', 'spotify', 'zalando', 'delivery hero', 'klarna', 'wise', 'revolut', 'wolt', 'mistral', 'lovable', 'leya'].some(k => p.org_name.toLowerCase().includes(k));
-      return p.org_category_group === 'private_eu' || isEUCountry || isEUKnown;
+    if (cat === 'govt') {
+      const govtKeys = ['nic', 'nielit', 'c-dot', 'cdot', 'drdo', 'isro', 'csir', 'map_it', 'mapit', 'national informatics'];
+      return p.org_category_group === 'govt' || p.org_category_group === 'research_internship' || govtKeys.some(k => nameLower.includes(k));
     }
     if (cat === 'tech') {
-      return (
-        p.org_category_group === 'private_in' ||
-        (p.process_type === 'private_tech' && p.process_type !== 'quant_hft' && p.process_type !== 'psu_cbt_exam')
-      );
+      const techKeys = ['tata consultancy services', 'tcs', 'infosys', 'zoho', 'persistent systems', 'persistent', 'wipro', 'l&t', 'cognizant', 'jio'];
+      return p.org_category_group === 'private_in' || techKeys.some(k => nameLower.includes(k)) || (p.process_type === 'private_tech');
+    }
+    if (cat === 'remote') {
+      return (p.location || '').toLowerCase().includes('remote') || nameLower.includes('remote');
     }
     return true;
   }, []);
@@ -620,11 +616,11 @@ export default function JobHuntPrep() {
             </span>
             {[
               { id: 'all', label: `All (${plans.length})` },
-              { id: 'startup', label: `🚀 Startups / Remote (${plans.filter(p => isPlanInCat(p, 'startup')).length})` },
-              { id: 'eu', label: `🇪🇺 EU Visa (${plans.filter(p => isPlanInCat(p, 'eu')).length})` },
-              { id: 'tech', label: `🏢 Tech (${plans.filter(p => isPlanInCat(p, 'tech')).length})` },
-              { id: 'quant', label: `⚡ Quant / HFT (${plans.filter(p => isPlanInCat(p, 'quant')).length})` },
-              { id: 'psu', label: `🏭 PSU / Govt CBT (${plans.filter(p => isPlanInCat(p, 'psu')).length})` }
+              { id: 'psu', label: `🏭 PSU (Public Sector) (${plans.filter(p => isPlanInCat(p, 'psu')).length})` },
+              { id: 'govt', label: `🏛️ Govt & Research (${plans.filter(p => isPlanInCat(p, 'govt')).length})` },
+              { id: 'startup', label: `🚀 Indian Startups (${plans.filter(p => isPlanInCat(p, 'startup')).length})` },
+              { id: 'tech', label: `🇮🇳 Indian Tech (${plans.filter(p => isPlanInCat(p, 'tech')).length})` },
+              { id: 'remote', label: `💻 Remote India (${plans.filter(p => isPlanInCat(p, 'remote')).length})` }
             ].map(f => (
               <button
                 key={f.id}
@@ -713,7 +709,7 @@ export default function JobHuntPrep() {
             >
               {filteredPlans.map(p => (
                 <option key={p.id} value={p.id}>
-                  {getCountryFlag(p.org_country)} {p.org_name} — {p.role_title} ({p.org_visa_sponsored ? '🛂 Visa / Remote' : (p.process_type === 'psu_cbt_exam' ? '🏛️ CBT Exam' : p.process_type === 'quant_hft' ? '⚡ Quant HFT' : '🏢 Tech')})
+                  {getCountryFlag(p.org_country)} {p.org_name} — {p.role_title} ({p.process_type === 'psu_cbt_exam' ? '🏛️ PSU / Govt CBT' : '🏢 Tech & Startups'})
                 </option>
               ))}
             </select>

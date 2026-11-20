@@ -404,15 +404,15 @@ function scoreCompensation(profile, opp) {
 
   if (!bestCtc && !opp.pay_scale && !opp.compensation_display) return 50;
 
-  // 1. Indian Private (Matches user preferred minimum CTC, e.g. >= 5 LPA)
+  // 1. Indian Private / Tech (Strictly enforces candidate minimum CTC threshold, e.g. >= 5 LPA)
   const minThreshold = prefMin > 0 ? prefMin : 500000;
   if (isIndianPrivate && bestCtc > 0) {
-    if (bestCtc < minThreshold) return 10; // Below configured minimum CTC threshold
-    if (bestCtc >= 3500000) return 100;
-    if (bestCtc >= 2000000) return 96;
-    if (bestCtc >= 1200000) return 92;
-    if (bestCtc >= 800000) return 88;
-    return 84; // >= minThreshold (e.g. >= 5 LPA)
+    if (bestCtc < minThreshold) return 0; // Knockout: strictly below minimum package
+    // Ideal entry engineering sweet spot for 2026 CS graduate: ₹6 LPA - ₹15 LPA
+    if (bestCtc >= 600000 && bestCtc <= 1500000) return 100;
+    if (bestCtc > 1500000 && bestCtc <= 2400000) return 90;
+    if (bestCtc > 2400000) return 75; // Demote ultra-high CTC roles so realistic Indian tech/PSU roles rank first
+    return 85; // 5 LPA - 6 LPA
   }
 
   // 2. Foreign / Global Private (Hard Cap: $100k+ / €100k / S$135k)
@@ -586,7 +586,7 @@ function computeOpportunityScore(profile, opp, org = null, customThresholds = {}
   const deadline_urgency_score = scoreDeadlineUrgency(opp);
 
   // Weighted composite
-  const rawScore = Math.round(
+  let baseScore = Math.round(
     eligibility_pct * WEIGHTS.eligibility +
     profile_match_pct * WEIGHTS.profile_match +
     compensation_score * WEIGHTS.compensation +
@@ -597,49 +597,86 @@ function computeOpportunityScore(profile, opp, org = null, customThresholds = {}
     deadline_urgency_score * WEIGHTS.deadline_urgency
   );
 
-  const gateMandatory = isGateMandatory(opp);
-  const gateDisqualified = gateMandatory && (!profile.has_gate || profile.has_gate === 0 || profile.has_gate === '0');
-
-  // If candidate is not eligible to apply, overall opportunity score should reflect disqualification
-  const opportunity_score = (eligibility_pct === 0 || gateDisqualified)
-    ? Math.min(25, Math.round(rawScore * 0.25))
-    : rawScore;
-
-  const prefMin = Number(profile.pref_min_ctc) || 0;
+  const curr = (opp.currency || 'INR').toUpperCase();
   const ctcMax = Number(opp.ctc_max) || 0;
   const ctcMin = Number(opp.ctc_min) || 0;
   const bestCtc = ctcMax || ctcMin;
+  const prefMin = Number(profile.pref_min_ctc) || 500000;
+  const minThreshold = prefMin > 0 ? prefMin : 500000;
 
-  const isIndianContract = opp.country === 'India' || opp.category_group === 'private_in' || (opp.location && opp.location.toLowerCase().includes('india'));
-  const isForeign = !isIndianContract && (['private_eu', 'private_sg', 'private_global'].includes(opp.category_group) || (opp.country && opp.country !== 'India'));
-  const curr = (opp.currency || 'INR').toUpperCase();
+  // ── STRICT USER CONSTRAINTS & KNOCKOUTS ──
+  // Knockout 1: Foreign visa sponsorship or foreign non-remote location
+  const isVisaOrForeign = (opp.visa_sponsored === 1 || opp.visa_sponsored === true || String(opp.visa_sponsored) === '1') ||
+    (opp.country && opp.country !== 'India' && !opp.location?.toLowerCase().includes('remote') && !opp.location?.toLowerCase().includes('india'));
+
+  // Knockout 2: High-Frequency Trading & Quant Hedge Funds (Not aligned with candidate profile)
+  const isQuantHft = opp.category_group === 'quant_hft' ||
+    (org?.sector && /\b(quant|high-frequency|hft|market making|automated trading|trading systems)\b/i.test(org.sector)) ||
+    (org?.name && /\b(d\.?\s*e\.?\s*shaw|optiver|jane street|citadel|tower research|hudson river|jump trading|flow traders|imc trading|two sigma)\b/i.test(org.name));
+
+  // Knockout 3: Strictly below 5 LPA minimum threshold (for known INR salaries)
   const isFellowshipOrInternship = opp.category_group === 'research_internship' || opp.category === 'internship' || opp.job_type === 'research';
+  const isBelow5Lpa = !isFellowshipOrInternship && curr === 'INR' && bestCtc > 0 && bestCtc < minThreshold;
 
-  let ctcDisqualified = false;
-  let ctcDisqualifyMsg = '';
+  // Gate Knockout
+  const gateMandatory = isGateMandatory(opp);
+  const gateDisqualified = gateMandatory && (!profile.has_gate || profile.has_gate === 0 || profile.has_gate === '0');
 
-  // Compare only configured minimum in its known currency. Unknown compensation is not a rejection.
-  if (!isFellowshipOrInternship && curr==='INR' && prefMin>0 && bestCtc>0 && bestCtc<prefMin) {
-    ctcDisqualified=true;
-    ctcDisqualifyMsg='Known compensation is below your configured minimum';
+  // Hard Disqualification Check
+  const isDisqualified = isVisaOrForeign || isQuantHft || isBelow5Lpa || gateDisqualified || eligibility_pct === 0 || eligibility_pct < 30;
+
+  // ── TARGET ROLE PRIORITY ADJUSTMENTS FOR CANDIDATE ──
+  if (!isDisqualified) {
+    // 1. PSU & CPSE Boost (Top Priority)
+    if (opp.job_type === 'psu' || opp.category_group === 'psu' || org?.org_type === 'psu' || /\b(psu|cpse|public sector)\b/i.test(org?.sector || '')) {
+      baseScore += 16;
+    }
+    // 2. Government Tech & e-Governance Boost
+    if (opp.job_type === 'govt' || opp.category_group === 'govt' || org?.org_type === 'govt') {
+      baseScore += 16;
+    }
+    // 3. Research Labs & Fellowships (CSIR, IIT Labs, Project Fellow)
+    if (opp.job_type === 'research' || opp.category_group === 'research' || org?.org_type === 'research') {
+      baseScore += 14;
+    }
+    // 4. Indian Tech Startups
+    if (opp.category_group === 'startup' || org?.org_type === 'startup') {
+      baseScore += 12;
+    }
+    // 5. Madhya Pradesh & Local / Remote Tech (Bhopal, Indore, Pune, Remote India)
+    if (/\b(bhopal|indore|madhya pradesh|pune|remote|pan india)\b/i.test(opp.location || '')) {
+      baseScore += 8;
+    }
+    // 6. Realistic compensation sweet spot for 2026 CS graduate (₹6 LPA - ₹15 LPA)
+    if (curr === 'INR' && bestCtc >= 600000 && bestCtc <= 1500000) {
+      baseScore += 8;
+    }
+    // 7. Demote ultra-high corporate roles (> ₹35 LPA) so realistic Indian tech/PSU roles rank first
+    if (curr === 'INR' && bestCtc > 3500000) {
+      baseScore -= 12;
+    }
   }
 
+  const opportunity_score = isDisqualified
+    ? Math.min(20, Math.round(baseScore * 0.2))
+    : Math.min(100, Math.max(10, baseScore));
+
   let disqualification_reason = null;
-  if (gateDisqualified) {
+  if (isVisaOrForeign) {
+    disqualification_reason = 'Requires foreign visa sponsorship or overseas relocation (candidate targeting Indian offices & Remote)';
+  } else if (isQuantHft) {
+    disqualification_reason = 'Quantitative hedge fund / HFT role (candidate focusing on Indian tech, Startups, PSUs, Govt, Research)';
+  } else if (isBelow5Lpa) {
+    disqualification_reason = `Known compensation (₹${(bestCtc/100000).toFixed(1)} LPA) is below candidate target threshold of ₹5 LPA`;
+  } else if (gateDisqualified) {
     disqualification_reason = 'Requires GATE score for freshers (candidate profile has no GATE qualification)';
-  } else if (eligibility_pct === 0) {
+  } else if (eligibility_pct === 0 || eligibility_pct < 30) {
     disqualification_reason = 'Candidate does not meet branch, experience, or domain eligibility requirements';
-  } else if (ctcDisqualified) {
-    disqualification_reason = ctcDisqualifyMsg;
-  } else if (eligibility_pct < 30) {
-    disqualification_reason = 'Candidate degree/branch/age does not match eligibility criteria';
   }
 
   // Determine recommendation
   let recommendation;
-  if (eligibility_pct === 0 || gateDisqualified || ctcDisqualified) {
-    recommendation = 'ignore';
-  } else if (eligibility_pct < 30) {
+  if (isDisqualified) {
     recommendation = 'ignore';
   } else if (opportunity_score >= thresh.apply_now) {
     recommendation = 'apply_now';

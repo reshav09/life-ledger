@@ -5,15 +5,12 @@ import { useDialog } from '../components/DialogProvider.jsx';
 
 const ORG_CATEGORY_GROUPS = [
   { id: '', label: 'All Organizations', icon: '🌟' },
-  { id: 'startup', label: 'Startups & Scaleups', icon: '🚀' },
-  { id: 'research_internship', label: 'Research Fellowships', icon: '🔬' },
-  { id: 'psu', label: 'PSUs', icon: '🏭' },
-  { id: 'govt', label: 'Govt & Strategic R&D', icon: '🏛️' },
-  { id: 'private_in', label: 'Indian Tech', icon: '🇮🇳' },
-  { id: 'quant_hft', label: 'Quant & HFT', icon: '⚡' },
-  { id: 'private_eu', label: 'EU Visa Providing', icon: '🇪🇺' },
-  { id: 'private_sg', label: 'Singapore Visa Providing', icon: '🇸🇬' },
-  { id: 'private_global', label: 'Global Remote', icon: '🌐' }
+  { id: 'psu', label: 'PSUs (Public Sector)', icon: '🏭' },
+  { id: 'govt', label: 'Govt & e-Governance', icon: '🏛️' },
+  { id: 'research', label: 'Research & Science Labs', icon: '🔬' },
+  { id: 'startup', label: 'Indian Tech Startups', icon: '🚀' },
+  { id: 'private_in', label: 'Indian Tech & IT Services', icon: '🇮🇳' },
+  { id: 'remote', label: 'Remote / Hybrid India', icon: '💻' }
 ];
 
 const SECTOR_CATEGORIES = [
