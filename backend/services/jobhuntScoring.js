@@ -404,13 +404,15 @@ function scoreCompensation(profile, opp) {
 
   if (!bestCtc && !opp.pay_scale && !opp.compensation_display) return 50;
 
-  // 1. Indian Private (Hard Cap: ₹20 LPA)
+  // 1. Indian Private (Matches user preferred minimum CTC, e.g. >= 5 LPA)
+  const minThreshold = prefMin > 0 ? prefMin : 500000;
   if (isIndianPrivate && bestCtc > 0) {
-    if (bestCtc < 2000000) return 10; // Sub-20 LPA private role disqualified
+    if (bestCtc < minThreshold) return 10; // Below configured minimum CTC threshold
     if (bestCtc >= 3500000) return 100;
-    if (bestCtc >= 2800000) return 96;
-    if (bestCtc >= 2400000) return 92;
-    return 86; // >= 20 LPA
+    if (bestCtc >= 2000000) return 96;
+    if (bestCtc >= 1200000) return 92;
+    if (bestCtc >= 800000) return 88;
+    return 84; // >= minThreshold (e.g. >= 5 LPA)
   }
 
   // 2. Foreign / Global Private (Hard Cap: $100k+ / €100k / S$135k)

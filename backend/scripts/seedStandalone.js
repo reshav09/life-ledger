@@ -92,10 +92,21 @@ async function seedStandalone() {
     // Ensure default career profile exists
     const [[prof]] = await pool.query('SELECT id FROM jobhunt_profile WHERE id = 1');
     if (!prof) {
-      console.log('[Seed] Creating starter career profile...');
+      console.log('[Seed] Creating starter career profile for Ritu Yadav...');
       await pool.query(`
-        INSERT INTO jobhunt_profile (id, full_name, email, phone, candidate_name, primary_branch, current_location, work_mode_preference, target_roles, target_skills, expected_ctc_lpa)
-        VALUES (1, 'Candidate', '', '', 'Candidate', 'Computer Science & Engineering', 'India / Remote', 'hybrid', '["Software Engineer", "Backend Engineer", "Platform Engineer", "Full Stack Developer"]', '["Python", "JavaScript", "TypeScript", "React", "Node.js", "SQL", "Docker", "Git"]', 18)
+        INSERT INTO jobhunt_profile (
+          id, full_name, degree, branch, graduation_year, experience_years, age,
+          summary, skills, pref_min_ctc, pref_locations, pref_job_types, pref_sectors, pref_remote_ok, has_gate
+        ) VALUES (
+          1, 'Ritu Yadav', 'B.Tech Computer Science and Engineering', 'Computer Science and Engineering', 2026, 0.0, 21,
+          'Computer Science graduate with strong analytical and problem-solving skills, proficient in Python, C++, SQL, and Data Structures. Hands-on experience developing software and machine learning applications using Python, FastAPI, TensorFlow, XGBoost, and MySQL.',
+          '["Python","C++","SQL","MySQL","Machine Learning","TensorFlow","CNN","ResNet50","XGBoost","FastAPI","Flask","Streamlit","AWS Fundamentals","Git","GitHub","DSA","OOP","Computer Networks","Operating Systems","DBMS"]',
+          500000.00,
+          '["Bhopal","Noida","Bangalore","Pune","Hyderabad","Delhi NCR","Indore","Remote"]',
+          '["private","psu","govt","research"]',
+          '["IT","Software","AI/ML","Cloud","Fintech","PSU","Research"]',
+          1, 0
+        )
       `);
     }
 

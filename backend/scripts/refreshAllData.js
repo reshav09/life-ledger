@@ -28,7 +28,7 @@ async function refreshAllData() {
     investigate: thresholdMap.jobhunt_threshold_investigate || 35
   };
 
-  console.log(`[Config] Candidate: ${profile?.candidate_name || 'Reshav'}, Target: SDE/Backend/Platform/Cloud/FinOps`);
+  console.log(`[Config] Candidate: ${profile?.full_name || 'Ritu Yadav'}, Target: Software / Python / ML / Cloud / Data Structures`);
 
   // ──────────────────────────────────────────────────────────────────────────
   // PHASE 1: Direct ATS Ingest for all 79 ATS connected companies
