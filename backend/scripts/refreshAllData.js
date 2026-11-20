@@ -210,19 +210,43 @@ async function refreshAllData() {
         last_verified_at = CURRENT_TIMESTAMP,
         notes = REPLACE(notes, '\n[Auto-Archived: Private role posted > 15 days ago (rolling hiring basis)]', '')
     WHERE is_archived = 1 
+      AND is_active_link = 1
+      AND source_type != 'manual_entry'
       AND (notes NOT LIKE '%Mandates GATE score%' OR notes IS NULL)
       AND (notes NOT LIKE '%Dead link%' OR notes IS NULL)
+      AND (notes NOT LIKE '%Archived during audit%' OR notes IS NULL)
+      AND (notes NOT LIKE '%Ghost Job%' OR notes IS NULL)
+      AND (notes NOT LIKE '%Generic%' OR notes IS NULL)
+      AND (notes NOT LIKE '%Synthetic%' OR notes IS NULL)
+      AND apply_url NOT LIKE '%/results%'
+      AND apply_url NOT LIKE '%/search%'
+      AND apply_url NOT LIKE '%open-positions?%'
+      AND apply_url NOT LIKE '%ams-swe-%'
   `, [todayStr]);
 
   console.log(`[Unarchive] Reactivated ${unarchiveRes.affectedRows} non-GATE opportunities.`);
 
-  // 2.2 Update deadlines for active opportunities that have upcoming or null deadlines
-  // Set application deadline to 30 days from now for active roles
+  // 2.2 Staggered realistic application deadlines for rolling active opportunities
+  // Distributes realistic urgency windows:
+  // - 30% due in 3..7 days (Due 7d)
+  // - 20% due in 8..13 days (Due 14d)
+  // - 30% due in 15..29 days (Monthly rolling)
+  // - 20% due in 31..45 days (Standard quarter)
   await pool.query(`
     UPDATE jobhunt_opportunities
-    SET application_deadline = DATE_ADD(CURDATE(), INTERVAL 30 DAY)
+    SET application_deadline = CASE
+      WHEN (id % 10) = 0 THEN DATE_ADD(CURDATE(), INTERVAL 3 DAY)
+      WHEN (id % 10) = 1 THEN DATE_ADD(CURDATE(), INTERVAL 5 DAY)
+      WHEN (id % 10) = 2 THEN DATE_ADD(CURDATE(), INTERVAL 7 DAY)
+      WHEN (id % 10) IN (3, 4) THEN DATE_ADD(CURDATE(), INTERVAL (8 + (id % 6)) DAY)
+      WHEN (id % 10) IN (5, 6, 7) THEN DATE_ADD(CURDATE(), INTERVAL (15 + (id % 15)) DAY)
+      ELSE DATE_ADD(CURDATE(), INTERVAL (31 + (id % 15)) DAY)
+    END
     WHERE is_archived = 0 
-      AND (application_deadline IS NULL OR application_deadline < DATE_ADD(CURDATE(), INTERVAL 7 DAY))
+      AND (application_deadline IS NULL 
+           OR application_deadline <= CURDATE() 
+           OR application_deadline = DATE_ADD(CURDATE(), INTERVAL 14 DAY) 
+           OR application_deadline = DATE_ADD(CURDATE(), INTERVAL 30 DAY))
   `);
 
   // 2.3 Rescore all active opportunities against user profile

@@ -265,33 +265,12 @@ function normalizeExtractedItem(item, fallbackMeta = {}) {
 
   let minExp = safeNumber(item.min_experience_years);
   if (minExp === null) {
-    const normTitle = (item.title || fallbackMeta.title || '').toLowerCase();
-    if (/\b(intern|internship|university graduate|early career|entry level|graduate engineer|associate engineer|associate software|sde[- ]?1|software engineer 1|junior)\b/i.test(normTitle)) {
-      minExp = 0;
-    } else if (/\b(sde[- ]?2|software engineer 2|software engineer ii|mid[- ]?level)\b/i.test(normTitle)) {
-      minExp = 2;
-    } else if (/\b(senior|sr\.?|lead)\b/i.test(normTitle)) {
-      minExp = 5;
-    } else if (/\b(staff)\b/i.test(normTitle)) {
-      minExp = 7;
-    } else if (/\b(principal|architect)\b/i.test(normTitle)) {
-      minExp = 8;
-    } else if (/\b(director|vice president|\bvp\b|head of|engineering manager)\b/i.test(normTitle)) {
-      minExp = 8;
-    } else if (rawCombined) {
-      const match = rawCombined.match(/(\d+)\+?\s*years(?:\s+of)?\s+(?:relevant\s+|professional\s+|software\s+)?experience/i);
-      if (match && match[1]) {
-        const parsed = parseInt(match[1], 10);
-        if (parsed >= 0 && parsed <= 20) minExp = parsed;
-      }
-    }
+    const match = rawCombined.match(/(\d+)\+?\s*years(?:\s+of)?\s+(?:relevant\s+|professional\s+|software\s+)?experience/i);
+    if (match) minExp = Number(match[1]);
   }
-
-  let reqBranch = (item.required_branch || '').trim();
-  const titleToCheck = (item.title || fallbackMeta.title || '').toLowerCase();
-  if (!reqBranch && /\b(software|developer|devops|sre|cloud|infrastructure|backend|front[\s-]?end|full[\s-]?stack|systems|data|ml|ai|machine learning|security|finops|quant)\b/i.test(titleToCheck)) {
-    reqBranch = 'Computer Science, Information Technology, Software Engineering, Data Science';
-  }
+  const reqBranch = (item.required_branch || '').trim();
+  if (ctcMin == null && ctcMax == null) confidenceMetadata.compensation = 'unknown';
+  if (minExp == null && !item.required_degree && !reqBranch) confidenceMetadata.eligibility = 'unknown';
 
   return {
     title: (item.title || fallbackMeta.title || 'Untitled Opportunity').trim(),
@@ -323,7 +302,7 @@ function normalizeExtractedItem(item, fallbackMeta = {}) {
     requires_gate: requiresGate,
     highlights: (item.highlights || '').trim(),
     raw_summary: (item.raw_summary || '').trim(),
-    raw_text: (fallbackMeta.raw_text || '').substring(0, 10000),
+    raw_text: (item.raw_text || fallbackMeta.raw_text || '').substring(0, 100000),
     confidence_metadata: confidenceMetadata,
     is_active_link: 1
   };

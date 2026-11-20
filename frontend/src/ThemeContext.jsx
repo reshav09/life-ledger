@@ -13,6 +13,18 @@ export function ThemeProvider({ children }) {
   });
 
   useEffect(() => {
+    try {
+      if (!localStorage.getItem('ledger_theme')) {
+        api.get('/settings').then(res => {
+          if (res?.theme && (res.theme === 'light' || res.theme === 'dark')) {
+            setTheme(res.theme);
+          }
+        }).catch(() => {});
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     try { localStorage.setItem('ledger_theme', theme); } catch { /* ignore */ }
   }, [theme]);

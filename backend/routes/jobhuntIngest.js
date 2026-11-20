@@ -257,95 +257,9 @@ router.post('/ingest/confirm', async (req, res) => {
         org = found;
       }
 
-      const scores = computeOpportunityScore(profile || {}, opp, org, thresholds);
-
-      const oppCat = opp.category_group || org?.category_group || 'private_in';
-      const oppCountry = opp.country || org?.country || 'India';
-      const oppRegion = opp.region || org?.region || 'India';
-      const oppVisa = opp.visa_sponsored != null ? (opp.visa_sponsored ? 1 : 0) : (org?.visa_sponsored ? 1 : 0);
-      const oppCurrency = opp.currency || org?.currency || 'INR';
-      const oppCompDisplay = opp.compensation_display || '';
-      const oppPostedDate = opp.posted_date || new Date().toISOString().split('T')[0];
-
-      const [result] = await pool.query(
-        `INSERT INTO jobhunt_opportunities (
-          org_id, title, source_url, source_type,
-          required_degree, required_branch, min_experience_years,
-          max_age, min_age, required_skills,
-          vacancies, location, pay_scale, ctc_min, ctc_max,
-          application_deadline, exam_date, apply_url,
-          job_type, category, raw_text, notes,
-          eligibility_pct, profile_match_pct, compensation_score,
-          career_potential_score, competition_signal, application_difficulty_score,
-          org_quality_score, deadline_urgency_score, opportunity_score, recommendation,
-          requires_gate, is_new, is_verified_active, is_active_link,
-          category_group, country, region, visa_sponsored, currency, compensation_display,
-          posted_date
-        ) VALUES (
-          ?, ?, ?, ?,
-          ?, ?, ?,
-          ?, ?, ?,
-          ?, ?, ?, ?, ?,
-          ?, ?, ?,
-          ?, ?, ?, ?,
-          ?, ?, ?,
-          ?, ?, ?,
-          ?, ?, ?, ?,
-          ?, 1, 1, 1,
-          ?, ?, ?, ?, ?, ?,
-          ?
-        )`,
-        [
-          orgId || null,
-          opp.title || 'Untitled Opportunity',
-          opp.source_url || '',
-          opp.source_type || 'ai_ingest',
-          opp.required_degree || '',
-          opp.required_branch || '',
-          opp.min_experience_years ?? null,
-          opp.max_age ?? null,
-          opp.min_age ?? null,
-          JSON.stringify(opp.required_skills || []),
-          opp.vacancies ?? null,
-          opp.location || '',
-          opp.pay_scale || '',
-          opp.ctc_min ?? null,
-          opp.ctc_max ?? null,
-          opp.application_deadline || null,
-          opp.exam_date || null,
-          opp.apply_url || opp.source_url || '',
-          opp.job_type || (org?.org_type?.includes('PSU') ? 'psu' : 'private'),
-          opp.category || 'job',
-          opp.raw_summary || '',
-          opp.highlights || '',
-          scores.eligibility_pct,
-          scores.profile_match_pct,
-          scores.compensation_score,
-          scores.career_potential_score,
-          scores.competition_signal,
-          scores.application_difficulty_score,
-          scores.org_quality_score,
-          scores.deadline_urgency_score,
-          scores.opportunity_score,
-          scores.recommendation,
-          opp.requires_gate ? 1 : 0,
-          oppCat,
-          oppCountry,
-          oppRegion,
-          oppVisa,
-          oppCurrency,
-          oppCompDisplay,
-          oppPostedDate
-        ]
-      );
-
-      saved.push({
-        id: result.insertId,
-        title: opp.title,
-        org_name: opp.org_name || org?.name,
-        opportunity_score: scores.opportunity_score,
-        recommendation: scores.recommendation
-      });
+      const {ingestOpportunity}=require('../services/jobhuntIngestion');
+      const result=await ingestOpportunity(org || {id:null},opp,{profile:profile || {},thresholds});
+      saved.push({id:result.id,title:result.title,org_name:opp.org_name || org?.name,opportunity_score:result.score,recommendation:result.recommendation});
     }
 
     res.json({

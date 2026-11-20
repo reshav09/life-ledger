@@ -7,6 +7,7 @@
  */
 
 const pool = require('../db/db');
+const crypto = require('node:crypto');
 
 /**
  * Extracts atomic claims from jobhunt_profile and syncs them to jobhunt_evidence_claims
@@ -126,17 +127,26 @@ async function syncProfileEvidence() {
     }
   }
 
-  // Clear and insert atomic claims in a clean sync
-  await pool.query('DELETE FROM jobhunt_evidence_claims WHERE is_verified = 1');
-  for (const c of claims) {
-    await pool.query(
-      `INSERT INTO jobhunt_evidence_claims (category, source_title, claim_text, metrics_json, skills_tags, is_verified)
-       VALUES (?, ?, ?, ?, ?, 1)`,
-      [c.category, c.source_title, c.claim_text, JSON.stringify(c.metrics_json), JSON.stringify(c.skills_tags)]
-    );
-  }
+  if(p.summary) claims.push({category:'summary',source_title:'Professional summary',claim_text:p.summary,skills_tags:[]});
+  let skills=[];try {skills=typeof p.skills==='string'?JSON.parse(p.skills):p.skills || [];}catch{}
+  for(const skill of skills)claims.push({category:'skill',source_title:skill,claim_text:skill,skills_tags:[skill]});
+  const conn=await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    await conn.query('SELECT id FROM jobhunt_profile WHERE id=1 FOR UPDATE');
+    const [previous]=await conn.query('SELECT * FROM jobhunt_evidence_claims FOR UPDATE');
+    await conn.query('UPDATE jobhunt_evidence_claims SET is_active=0 WHERE is_active=1');
+    for(const c of claims){
+      const key=crypto.createHash('sha256').update([c.category,c.source_title,c.claim_text].join('\n')).digest('hex');
+      const old=previous.find(x=>x.source_key===key || (!x.source_key && x.category===c.category && x.source_title===c.source_title && x.claim_text===c.claim_text));
+      if(old)await conn.query('UPDATE jobhunt_evidence_claims SET source_key=?,is_active=1 WHERE id=?',[key,old.id]);
+      else await conn.query(`INSERT INTO jobhunt_evidence_claims (category,source_title,claim_text,metrics_json,skills_tags,is_verified,source_key,is_active)
+        VALUES (?,?,?,?,?,0,?,1) ON DUPLICATE KEY UPDATE is_active=1`,[c.category,c.source_title,c.claim_text,JSON.stringify(c.metrics_json || null),JSON.stringify(c.skills_tags || []),key]);
+    }
+    await conn.commit();
+  }catch(e){await conn.rollback();throw e;}finally{conn.release();}
+  return {synced:claims.length};
 
-  return { synced: claims.length };
 }
 
 /**
@@ -180,13 +190,15 @@ function extractSkills(text, masterSkillsJson) {
  * Returns structured evidence base grouped by category
  */
 async function getEvidenceBase() {
-  const [rows] = await pool.query('SELECT * FROM jobhunt_evidence_claims WHERE is_verified = 1 ORDER BY category, id');
+  const [rows] = await pool.query('SELECT * FROM jobhunt_evidence_claims WHERE is_verified = 1 AND is_active = 1 ORDER BY category, id');
   const grouped = {
     work_experience: [],
     project: [],
     education: [],
     publication: [],
     certification: [],
+    summary: [],
+    skill: [],
     other: []
   };
 
@@ -209,3 +221,15 @@ module.exports = {
   getEvidenceBase,
   extractMetrics
 };
+
+async function listEvidenceClaims() {
+  const [rows]=await pool.query('SELECT id,category,source_title,claim_text,is_verified,is_active FROM jobhunt_evidence_claims WHERE is_active=1 ORDER BY category,id');
+  return rows;
+}
+async function confirmEvidence(ids) {
+  if(!Array.isArray(ids)||!ids.length||ids.length>1000||ids.some(x=>!Number.isSafeInteger(Number(x))||Number(x)<1))throw new Error('Choose valid evidence IDs to confirm.');
+  const [r]=await pool.query('UPDATE jobhunt_evidence_claims SET is_verified=1 WHERE is_active=1 AND id IN (?)',[ids.map(Number)]);
+  return {confirmed:r.affectedRows};
+}
+module.exports.listEvidenceClaims=listEvidenceClaims;
+module.exports.confirmEvidence=confirmEvidence;

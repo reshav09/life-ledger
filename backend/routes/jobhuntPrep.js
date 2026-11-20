@@ -93,6 +93,16 @@ router.put('/questions/:id/notes', async (req, res, next) => {
 });
 
 // GET /api/jobhunt/prep/:id — get single plan
+router.get('/mock', async (req, res, next) => {
+  try {
+    const { opportunityId, applicationId } = req.query;
+    const sessions = await mockService.listMockSessions({ opportunityId, applicationId });
+    res.json(sessions);
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.get('/:id', async (req, res, next) => {
   try {
     const plan = await prepService.getPrepPlanById(req.params.id);
@@ -162,11 +172,12 @@ router.delete('/:id', async (req, res, next) => {
 // POST /api/jobhunt/prep/mock/start
 router.post('/mock/start', async (req, res, next) => {
   try {
-    const { opportunityId, applicationId, packageId, sessionType } = req.body;
+    const { opportunityId, applicationId, packageId, sessionType, targetRole, targetCompany } = req.body;
     const session = await mockService.startMockSession({
       opportunityId,
       applicationId,
       packageId,
+      targetRole, targetCompany,
       sessionType
     });
     res.status(201).json(session);
@@ -198,14 +209,6 @@ router.get('/mock/:id', async (req, res, next) => {
 });
 
 // GET /api/jobhunt/prep/mock — list sessions
-router.get('/mock', async (req, res, next) => {
-  try {
-    const { opportunityId, applicationId } = req.query;
-    const sessions = await mockService.listMockSessions({ opportunityId, applicationId });
-    res.json(sessions);
-  } catch (err) {
-    next(err);
-  }
-});
+
 
 module.exports = router;

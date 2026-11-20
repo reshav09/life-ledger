@@ -1,155 +1,44 @@
-/**
- * jobhuntDocumentRenderer.js - Clean ATS-Compliant Document Renderer
- * Generates printer-ready, ATS-optimized HTML for resumes and cover letters.
- */
-
-function renderAtsHtml({ title, contentMarkdown, type = 'resume' }) {
-  const htmlContent = markdownToSimpleHtml(contentMarkdown);
-
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>${escapeHtml(title)}</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <style>
-    @page {
-      size: letter;
-      margin: 0.6in 0.7in;
-    }
-    * {
-      box-sizing: border-box;
-      -webkit-print-color-adjust: exact;
-      print-color-adjust: exact;
-    }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-      color: #111827;
-      background: #ffffff;
-      line-height: 1.45;
-      font-size: 11pt;
-      margin: 0;
-      padding: 24px;
-      max-width: 8.5in;
-      margin: 0 auto;
-    }
-    h1 {
-      font-size: 20pt;
-      font-weight: 700;
-      margin: 0 0 4px 0;
-      color: #0f172a;
-      letter-spacing: -0.02em;
-    }
-    h2 {
-      font-size: 12.5pt;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: #1e293b;
-      border-bottom: 1.5px solid #cbd5e1;
-      padding-bottom: 3px;
-      margin: 14px 0 8px 0;
-    }
-    h3 {
-      font-size: 11.5pt;
-      font-weight: 600;
-      margin: 10px 0 2px 0;
-      color: #0f172a;
-    }
-    p {
-      margin: 4px 0 8px 0;
-    }
-    ul {
-      margin: 4px 0 10px 0;
-      padding-left: 20px;
-    }
-    li {
-      margin-bottom: 3px;
-    }
-    a {
-      color: #1e40af;
-      text-decoration: none;
-    }
-    hr {
-      border: none;
-      border-top: 1px solid #cbd5e1;
-      margin: 10px 0;
-    }
-    strong {
-      font-weight: 600;
-      color: #0f172a;
-    }
-    .print-bar {
-      background: #f8fafc;
-      border: 1px solid #e2e8f0;
-      padding: 10px 16px;
-      border-radius: 8px;
-      margin-bottom: 20px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .print-btn {
-      background: #0f172a;
-      color: #ffffff;
-      border: none;
-      padding: 8px 16px;
-      border-radius: 6px;
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-    }
-    @media print {
-      body {
-        padding: 0;
-      }
-      .print-bar {
-        display: none !important;
-      }
-    }
-  </style>
-</head>
-<body>
-  <div class="print-bar">
-    <div>
-      <strong>ATS Printable Preview:</strong> ${escapeHtml(title)}
-    </div>
-    <button class="print-btn" onclick="window.print()">🖨️ Print / Save as PDF</button>
-  </div>
-  ${htmlContent}
-</body>
-</html>`;
+const PDFDocument=require('pdfkit');
+const fs=require('node:fs');
+const path=require('node:path');
+function escapeHtml(s=''){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function safeLink(value){try{const u=new URL(value);return ['https:','http:','mailto:'].includes(u.protocol)?u.href:null;}catch{return null;}}
+function inline(text){
+ let out=escapeHtml(text);
+ out=out.replace(/\[([^\]]+)\]\(([^)]+)\)/g,(_m,label,url)=>{const decoded=url.replace(/&amp;/g,'&');const safe=safeLink(decoded);return safe?`<a href="${escapeHtml(safe)}" rel="noopener noreferrer">${label}</a>`:label;});
+ return out.replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');
 }
-
-function markdownToSimpleHtml(md) {
-  if (!md) return '';
-
-  return md
-    .replace(/^# (.*$)/gim, '<h1>$1</h1>')
-    .replace(/^## (.*$)/gim, '<h2>$1</h2>')
-    .replace(/^### (.*$)/gim, '<h3>$1</h3>')
-    .replace(/\*\*(.*?)\*\*/gim, '<strong>$1</strong>')
-    .replace(/\*(.*?)\*/gim, '<em>$1</em>')
-    .replace(/\[(.*?)\]\((.*?)\)/gim, '<a href="$2" target="_blank">$1</a>')
-    .replace(/^---$/gim, '<hr>')
-    .replace(/^\* (.*$)/gim, '<li>$1</li>')
-    .replace(/(<li>.*<\/li>)/gims, (match) => `<ul>${match}</ul>`)
-    .replace(/<\/ul>\s*<ul>/gim, '')
-    .split('\n\n')
-    .map(p => {
-      const trimmed = p.trim();
-      if (!trimmed) return '';
-      if (trimmed.startsWith('<h') || trimmed.startsWith('<ul') || trimmed.startsWith('<hr')) return trimmed;
-      return `<p>${trimmed.replace(/\n/g, '<br>')}</p>`;
-    })
-    .join('\n');
+function markdownToSimpleHtml(md=''){
+ let list=false;const out=[];
+ for(const line of String(md).split('\n')){
+  const bullet=/^\s*[*\-•]\s+(.+)/.exec(line);
+  if(bullet){if(!list){out.push('<ul>');list=true;}out.push(`<li>${inline(bullet[1])}</li>`);continue;}
+  if(list){out.push('</ul>');list=false;}
+  const heading=/^(#{1,3})\s+(.+)/.exec(line);
+  if(heading)out.push(`<h${heading[1].length}>${inline(heading[2])}</h${heading[1].length}>`);
+  else if(line.trim()==='---')out.push('<hr>');
+  else if(line.trim())out.push(`<p>${inline(line)}</p>`);
+ }
+ if(list)out.push('</ul>');return out.join('\n');
 }
-
-function escapeHtml(str) {
-  if (!str) return '';
-  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+function renderAtsHtml({title,contentMarkdown}){
+ return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>
+ @page{size:A4;margin:18mm}body{font:11pt Arial,sans-serif;line-height:1.45;color:#17202a;max-width:780px;margin:24px auto;padding:16px}h1{font-size:22pt}h2{font-size:13pt;border-bottom:1px solid #ccc}h3{font-size:12pt}h1,h2,h3{break-after:avoid}p,li{orphans:3;widows:3}a{color:#164b78}p{margin:6px 0}</style></head><body>${markdownToSimpleHtml(contentMarkdown)}</body></html>`;
 }
-
-module.exports = {
-  renderAtsHtml
-};
+function plainText(line){return line.replace(/\[([^\]]+)\]\(([^)]+)\)/g,'$1 ($2)').replace(/\*\*/g,'').replace(/^#{1,3}\s+/,'').replace(/^\s*[*\-•]\s+/,'• ');}
+function renderPdf({title,contentMarkdown}) {
+ return new Promise((resolve,reject)=>{
+  const doc=new PDFDocument({size:'A4',margin:48,info:{Title:title,Creator:'Life Ledger Job Hunt',CreationDate:new Date('2000-01-01T00:00:00Z'),ModDate:new Date('2000-01-01T00:00:00Z')}}),chunks=[];
+  doc.on('data',b=>chunks.push(b));doc.on('end',()=>resolve(Buffer.concat(chunks)));doc.on('error',reject);
+  const fonts=[process.env.JOBHUNT_PDF_FONT,'/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf','/usr/share/fonts/dejavu-sans-fonts/DejaVuSans.ttf','/usr/share/fonts/ttf-dejavu/DejaVuSans.ttf'].filter(Boolean);
+  const font=fonts.find(f=>fs.existsSync(f));if(font)doc.font(font);
+  for(const line of String(contentMarkdown || '').split('\n')){
+   if(line.trim()==='---')continue;
+   const heading=/^(#{1,3}) /.exec(line);doc.fontSize(heading?(heading[1].length===1?19:12):10);
+   if(heading&&doc.y>doc.page.height-110)doc.addPage();
+   doc.text(plainText(line),{lineGap:3});if(heading||!line.trim())doc.moveDown(0.3);
+  }
+  doc.end();
+ });
+}
+module.exports={renderAtsHtml,markdownToSimpleHtml,renderPdf,safeLink};

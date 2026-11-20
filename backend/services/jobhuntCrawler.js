@@ -1,3 +1,4 @@
+const { fetchPublic: fetch } = require('./jobhuntFetch');
 const crypto = require('crypto');
 const cheerio = require('cheerio');
 const pool = require('../db/db');
@@ -7,7 +8,7 @@ const { isATSConfigured, fetchATSOpportunities } = require('./jobhuntATS');
 const { normalizeTitle } = require('./jobhuntVerification');
 
 // Indian Govt / PSU portals frequently use CCA India certs that are not in default Node trust stores
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+// TLS certificate verification remains enabled for the entire process.
 
 const USER_AGENT = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
 
@@ -98,188 +99,24 @@ async function fetchWebpage(targetUrl) {
  * Eliminates JavaScript rendering/Cheerio issues and automatically purges closed roles.
  */
 async function pollATSOrganization(org) {
-  const now = new Date();
+  const { ingestOpportunity } = require('./jobhuntIngestion');
   try {
-    const rawJobs = await fetchATSOpportunities(org, { techOnly: true, maxRoles: 40 });
-
-    await pool.query(
-      `UPDATE jobhunt_organizations 
-       SET last_checked_at = NOW(),
-           last_successful_pull = NOW(),
-           last_jobs_found = ?,
-           last_crawl_status = 'success'
-       WHERE id = ?`,
-      [rawJobs.length, org.id]
-    );
-
+    const jobs = await fetchATSOpportunities(org, {techOnly:false, maxRoles:0});
     const [[profile]] = await pool.query('SELECT * FROM jobhunt_profile WHERE id = 1');
-    const [settingRows] = await pool.query("SELECT `key`, `value` FROM settings WHERE `key` LIKE 'jobhunt_threshold_%'");
-    const thresholdMap = Object.fromEntries(settingRows.map(r => [r.key, Number(r.value)]));
-    const thresholds = {
-      apply_now: thresholdMap.jobhunt_threshold_apply_now || 75,
-      worth_applying: thresholdMap.jobhunt_threshold_worth_applying || 55,
-      investigate: thresholdMap.jobhunt_threshold_investigate || 35
-    };
-
-    const inserted = [];
-    const activeApplyUrls = [];
-
-    // Fetch existing opportunities for this org to perform deduplication and link refresh
-    const [existingOpps] = await pool.query(
-      'SELECT id, title, apply_url, confidence_metadata FROM jobhunt_opportunities WHERE org_id = ? AND is_archived = 0',
-      [org.id]
-    );
-
-    for (const job of rawJobs) {
-      activeApplyUrls.push(job.apply_url);
-      const normalizedItem = normalizeExtractedItem(job, {
-        org_name: org.name,
-        source_url: job.apply_url,
-        source_type: job.source_type,
-        raw_text: job.raw_text
-      });
-
-      const normJobTitle = normalizeTitle(job.title);
-
-      // Check if duplicate exists (either matching apply_url or fuzzy title)
-      const existingMatch = existingOpps.find(eo => 
-        (eo.apply_url && job.apply_url && eo.apply_url === job.apply_url) ||
-        (normalizeTitle(eo.title) === normJobTitle)
-      );
-
-      if (existingMatch) {
-        await pool.query(
-          `UPDATE jobhunt_opportunities 
-           SET is_verified_active = 1,
-               is_active_link = 1,
-               verified_at = CURRENT_TIMESTAMP,
-               last_verified_at = CURRENT_TIMESTAMP,
-               confidence_metadata = ?
-           WHERE id = ?`,
-          [JSON.stringify(normalizedItem.confidence_metadata), existingMatch.id]
-        );
-        continue;
-      }
-
-      // Compute score
-      const scores = computeOpportunityScore(profile || {}, normalizedItem, org, thresholds);
-
-      const [insRes] = await pool.query(
-        `INSERT INTO jobhunt_opportunities (
-          org_id, title, source_url, source_type,
-          required_degree, required_branch, min_experience_years,
-          max_age, min_age, required_skills, vacancies,
-          location, pay_scale, ctc_min, ctc_max,
-          application_deadline, exam_date, apply_url,
-          job_type, category, raw_text, notes,
-          eligibility_pct, profile_match_pct, compensation_score,
-          career_potential_score, competition_signal, application_difficulty_score,
-          org_quality_score, deadline_urgency_score, opportunity_score, recommendation,
-          requires_gate, is_new, is_verified_active, is_active_link, verified_at, last_verified_at,
-          category_group, country, region, visa_sponsored, currency, compensation_display,
-          posted_date, confidence_metadata
-        ) VALUES (
-          ?, ?, ?, ?,
-          ?, ?, ?,
-          ?, ?, ?, ?,
-          ?, ?, ?, ?,
-          ?, ?, ?,
-          ?, ?, ?, ?,
-          ?, ?, ?,
-          ?, ?, ?,
-          ?, ?, ?, ?,
-          ?, 1, 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP,
-          ?, ?, ?, ?, ?, ?,
-          ?, ?
-        )
-        ON DUPLICATE KEY UPDATE
-          apply_url = VALUES(apply_url),
-          location = VALUES(location),
-          raw_text = VALUES(raw_text),
-          eligibility_pct = VALUES(eligibility_pct),
-          profile_match_pct = VALUES(profile_match_pct),
-          opportunity_score = VALUES(opportunity_score),
-          recommendation = VALUES(recommendation),
-          is_active_link = 1,
-          is_archived = 0,
-          last_verified_at = CURRENT_TIMESTAMP,
-          confidence_metadata = VALUES(confidence_metadata)
-        `,
-        [
-          org.id, normalizedItem.title, normalizedItem.source_url, normalizedItem.source_type,
-          normalizedItem.required_degree || '', normalizedItem.required_branch || '', normalizedItem.min_experience_years,
-          normalizedItem.max_age, normalizedItem.min_age, JSON.stringify(normalizedItem.required_skills || []), normalizedItem.vacancies,
-          normalizedItem.location || '', normalizedItem.pay_scale || '', normalizedItem.ctc_min, normalizedItem.ctc_max,
-          normalizedItem.application_deadline, normalizedItem.exam_date, normalizedItem.apply_url,
-          normalizedItem.job_type || 'private', normalizedItem.category || 'job', normalizedItem.raw_summary || '', normalizedItem.highlights || '',
-          scores.eligibility_pct, scores.profile_match_pct, scores.compensation_score,
-          scores.career_potential_score, scores.competition_signal, scores.application_difficulty_score,
-          scores.org_quality_score, scores.deadline_urgency_score, scores.opportunity_score, scores.recommendation,
-          normalizedItem.requires_gate ? 1 : 0,
-          org.category_group || 'private_global', org.country || 'USA', org.region || 'Global', org.visa_sponsored || 0,
-          org.currency || 'USD', normalizedItem.compensation_display || '',
-          normalizedItem.posted_date || now.toISOString().split('T')[0],
-          JSON.stringify(normalizedItem.confidence_metadata)
-        ]
-      );
-
-      inserted.push({
-        id: insRes.insertId,
-        title: normalizedItem.title,
-        score: scores.opportunity_score,
-        recommendation: scores.recommendation
-      });
-    }
-
-    // Auto-archive closed roles that disappeared from this ATS feed
-    if (activeApplyUrls.length > 0) {
-      await pool.query(
-        `UPDATE jobhunt_opportunities 
-         SET is_archived = 1,
-             is_active_link = 0,
-             notes = CONCAT(IFNULL(notes, ''), ' [Auto-Closed: Vanished from ATS feed]')
-         WHERE org_id = ? 
-           AND source_type LIKE '%api%' 
-           AND is_archived = 0 
-           AND apply_url NOT IN (?)`,
-        [org.id, activeApplyUrls]
-      );
-    }
-
-    return {
-      org_id: org.id,
-      org_name: org.name,
-      target_url: org.careers_url,
-      is_ats: true,
-      ats_type: org.ats_type,
-      changed: true,
-      status: 'success',
-      jobs_found: rawJobs.length,
-      new_opportunities_count: inserted.length,
-      new_opportunities: inserted,
-      last_checked_at: now
-    };
-  } catch (err) {
-    await pool.query(
-      `UPDATE jobhunt_organizations 
-       SET last_checked_at = NOW(),
-           last_crawl_status = ? 
-       WHERE id = ?`,
-      [`error: ${err.message.slice(0, 50)}`, org.id]
-    );
-
-    return {
-      org_id: org.id,
-      org_name: org.name,
-      error: `ATS Ingest failed: ${err.message}`,
-      target_url: org.careers_url
-    };
+    const [settings] = await pool.query("SELECT `key`, `value` FROM settings WHERE `key` LIKE 'jobhunt_threshold_%'");
+    const thresholds = Object.fromEntries(settings.map(r=>[r.key.replace('jobhunt_threshold_',''),Number(r.value)]));
+    const results=[];
+    for(const job of jobs)results.push(await ingestOpportunity(org,job,{profile:profile || {},thresholds}));
+    await pool.query("UPDATE jobhunt_organizations SET last_checked_at=NOW(), last_successful_pull=NOW(), last_jobs_found=?, last_crawl_status='success' WHERE id=?",[jobs.length,org.id]);
+    // Absence from a bounded/filtered feed never proves a role is closed.
+    return {org_id:org.id,org_name:org.name,is_ats:true,status:'success',jobs_found:jobs.length,
+      new_opportunities_count:results.filter(x=>x.inserted).length,new_opportunities:results.filter(x=>x.inserted)};
+  }catch(err){
+    await pool.query("UPDATE jobhunt_organizations SET last_checked_at=NOW(),last_crawl_status='error' WHERE id=?",[org.id]);
+    throw err;
   }
 }
 
-/**
- * Poll a single organization for changes and new opportunities.
- */
 async function pollOrganization(orgId) {
   const [orgRows] = await pool.query('SELECT * FROM jobhunt_organizations WHERE id = ?', [orgId]);
   if (orgRows.length === 0) throw new Error('Organization not found');
@@ -409,70 +246,11 @@ async function pollOrganization(orgId) {
 
   const inserted = [];
 
+  const { ingestOpportunity } = require('./jobhuntIngestion');
   for (const opp of extractedOpportunities) {
-    // Check if duplicate opportunity already exists for this org with identical title
-    const [dups] = await pool.query(
-      'SELECT id FROM jobhunt_opportunities WHERE org_id = ? AND title = ? AND is_archived = 0',
-      [org.id, opp.title]
-    );
-
-    if (dups.length > 0) continue; // Skip existing title
-
-    // Calculate score
-    const scores = computeOpportunityScore(profile || {}, opp, org, thresholds);
-
-    const oppCat = opp.category_group || org.category_group || 'private_in';
-    const oppCountry = opp.country || org.country || 'India';
-    const oppRegion = opp.region || org.region || 'India';
-    const oppVisa = opp.visa_sponsored != null ? opp.visa_sponsored : (org.visa_sponsored || 0);
-    const oppCurrency = opp.currency || org.currency || 'INR';
-
-    const [insRes] = await pool.query(
-      `INSERT INTO jobhunt_opportunities (
-        org_id, title, source_url, source_type,
-        required_degree, required_branch, min_experience_years,
-        max_age, min_age, required_skills, vacancies,
-        location, pay_scale, ctc_min, ctc_max,
-        application_deadline, exam_date, apply_url,
-        job_type, category, raw_text, notes,
-        eligibility_pct, profile_match_pct, compensation_score,
-        career_potential_score, competition_signal, application_difficulty_score,
-        org_quality_score, deadline_urgency_score, opportunity_score, recommendation,
-        requires_gate, is_new, is_verified_active, is_active_link,
-        category_group, country, region, visa_sponsored, currency, compensation_display,
-        posted_date, confidence_metadata
-      ) VALUES (
-        ?, ?, ?, ?,
-        ?, ?, ?,
-        ?, ?, ?, ?,
-        ?, ?, ?, ?,
-        ?, ?, ?,
-        ?, ?, ?, ?,
-        ?, ?, ?,
-        ?, ?, ?,
-        ?, ?, ?, ?,
-        ?, 1, 1, 1,
-        ?, ?, ?, ?, ?, ?,
-        ?, ?
-      )`,
-      [
-        org.id, opp.title, opp.source_url || targetUrl, 'crawler',
-        opp.required_degree || '', opp.required_branch || '', opp.min_experience_years,
-        opp.max_age, opp.min_age, JSON.stringify(opp.required_skills || []), opp.vacancies,
-        opp.location || '', opp.pay_scale || '', opp.ctc_min, opp.ctc_max,
-        opp.application_deadline, opp.exam_date, opp.apply_url || targetUrl,
-        opp.job_type || 'other', opp.category || 'job', opp.raw_summary || '', opp.highlights || '',
-        scores.eligibility_pct, scores.profile_match_pct, scores.compensation_score,
-        scores.career_potential_score, scores.competition_signal, scores.application_difficulty_score,
-        scores.org_quality_score, scores.deadline_urgency_score, scores.opportunity_score, scores.recommendation,
-        opp.requires_gate ? 1 : 0,
-        oppCat, oppCountry, oppRegion, oppVisa, oppCurrency, opp.compensation_display || '',
-        opp.posted_date || new Date().toISOString().split('T')[0],
-        JSON.stringify(opp.confidence_metadata || {})
-      ]
-    );
-
-    inserted.push({ id: insRes.insertId, title: opp.title, score: scores.opportunity_score, recommendation: scores.recommendation });
+    const result = await ingestOpportunity(org, {...opp, raw_text: opp.raw_text || cleanText,
+      source_type:'crawler', source_url:targetUrl}, {profile:profile || {},thresholds});
+    if(result.inserted) inserted.push(result);
   }
 
   return {
@@ -519,7 +297,7 @@ async function startBatchCrawl(options = {}) {
   const [orgs] = await pool.query(
     `SELECT id, name, careers_url, notification_url, pdf_page_url
      FROM jobhunt_organizations
-     WHERE is_active = 1 AND (careers_url != '' OR notification_url != '' OR pdf_page_url != '')
+     WHERE is_active = 1 AND (careers_url != '' OR notification_url != '' OR pdf_page_url != '' OR ats_id IS NOT NULL)
      ORDER BY (last_checked_at IS NULL) DESC, last_checked_at ASC
      LIMIT ?`,
     [Number(limit)]
@@ -599,22 +377,26 @@ function startBackgroundCrawler() {
   if (crawlerInterval) clearInterval(crawlerInterval);
 
   // Run every 2 hours
-  const INTERVAL_MS = 2 * 60 * 60 * 1000;
+  const INTERVAL_MS = 60 * 1000;
+  let running=false;
 
   crawlerInterval = setInterval(async () => {
+    if(running)return;running=true;
     try {
       // Check if auto polling is enabled in settings
       const [[row]] = await pool.query("SELECT `value` FROM settings WHERE `key` = 'jobhunt_auto_poll_enabled'");
       const enabled = row ? row.value === '1' || row.value === 'true' : false;
       if (!enabled) return;
 
-      console.log('[JobHunt Crawler] Running automated background poll for due organizations...');
+      const [[frequency]]=await pool.query("SELECT `value` FROM settings WHERE `key`='jobhunt_default_polling'");
+      const hours=({hourly:1,daily:24,weekly:168,monthly:720})[frequency?.value] || 168;
+      console.log('[JobHunt Crawler] Checking due organizations');
       const [dueOrgs] = await pool.query(
         `SELECT id FROM jobhunt_organizations
          WHERE is_active = 1
-           AND (careers_url != '' OR notification_url != '' OR pdf_page_url != '')
-           AND (last_checked_at IS NULL OR last_checked_at < NOW() - INTERVAL 12 HOUR)
-         LIMIT 10`
+           AND (careers_url != '' OR notification_url != '' OR pdf_page_url != '' OR ats_id IS NOT NULL)
+           AND (last_checked_at IS NULL OR last_checked_at < DATE_SUB(NOW(),INTERVAL ? HOUR))
+         ORDER BY last_checked_at ASC LIMIT 10`,[hours]
       );
 
       for (const org of dueOrgs) {
@@ -623,7 +405,7 @@ function startBackgroundCrawler() {
       }
     } catch (err) {
       console.error('[JobHunt Crawler Error]:', err.message);
-    }
+    } finally {running=false;}
   }, INTERVAL_MS);
 }
 
@@ -631,6 +413,7 @@ module.exports = {
   fetchWebpage,
   pollOrganization,
   pollAllActiveOrgs,
+  pollATSOrganization,
   startBatchCrawl,
   getCrawlProgress,
   startBackgroundCrawler

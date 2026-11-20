@@ -993,13 +993,13 @@ async function researchAndGeneratePlan({ orgId, orgName, roleTitle, roleCategory
   let examPattern = null;
   let totalStages = 4;
   let confidence = 'medium';
-  let confidenceReason = 'Researched based on standard verified organizational tier structure and cross-verified public hiring benchmarks.';
+  let confidenceReason = 'General preparation template. Employer-specific stages have not been independently verified.';
   let sources = [];
 
   if (isGovtOrPSU) {
     totalStages = 2;
-    confidence = 'based_on_notification';
-    confidenceReason = 'Structure established from standard Central PSU / R&D Recruitment Notification CBT Tier-1 & Technical Interview framework.';
+    confidence = 'low';
+    confidenceReason = 'General PSU preparation guidance; verify exam format and dates against the actual notification.';
     examPattern = {
       exam_name: `${resolvedOrgName} Computer-Based Recruitment Examination`,
       mode: 'Computer-Based Test (CBT) Online',
@@ -1065,20 +1065,20 @@ async function researchAndGeneratePlan({ orgId, orgName, roleTitle, roleCategory
         title: `${resolvedOrgName} Official Recruitment Notification PDF & Exam Guidelines`,
         url: 'https://google.com/search?q=' + encodeURIComponent(`${resolvedOrgName} recruitment exam pattern syllabus notification`),
         platform: 'official_notification',
-        agreement_note: 'Official recruitment guidelines confirm Computer-Based Test and Technical Interview format.'
+        agreement_note: 'Search reference only; inspect the actual employer notification.'
       },
       {
         title: `${resolvedOrgName} Computer Science Previous Question Papers & Syllabus`,
         url: 'https://www.geeksforgeeks.org/tag/psu-recruitment/',
         platform: 'exam_prep',
-        agreement_note: 'Cross-verified 100-question distribution and core CS syllabus.'
+        agreement_note: 'General practice resource; exam pattern not verified.'
       }
     ];
   } else {
     // Private Tech / European Sponsor / MNC
     totalStages = 4;
     confidence = 'medium';
-    confidenceReason = `Cross-verified standard hiring stages for ${resolvedOrgName} across public developer communities (LeetCode, Glassdoor, AmbitionBox).`;
+    confidenceReason = `General preparation suggestions for ${resolvedOrgName}; not verified hiring stages.`;
 
     stages = [
       {
@@ -1148,13 +1148,13 @@ async function researchAndGeneratePlan({ orgId, orgName, roleTitle, roleCategory
         title: `${resolvedOrgName} Interview Process & Reviews — Glassdoor / AmbitionBox`,
         url: 'https://google.com/search?q=' + encodeURIComponent(`${resolvedOrgName} interview process rounds`),
         platform: 'interview_community',
-        agreement_note: 'Multiple candidate reports confirm OA followed by 3 live rounds (DSA, Design, Manager).'
+        agreement_note: 'Search reference only; no employer process was verified.'
       },
       {
         title: `${resolvedOrgName} Interview Experience Community Tag — GeeksforGeeks / LeetCode`,
         url: 'https://leetcode.com/discuss/interview-question?query=' + encodeURIComponent(resolvedOrgName),
         platform: 'interview_community',
-        agreement_note: 'Confirms coding question difficulty level and system design expectations.'
+        agreement_note: 'Practice reference; question difficulty and stages remain unverified.'
       }
     ];
   }

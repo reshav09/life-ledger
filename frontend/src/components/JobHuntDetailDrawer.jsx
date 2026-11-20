@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 
 const REC_CONFIG = {
@@ -88,7 +89,7 @@ export default function JobHuntDetailDrawer({
 
   const rec = REC_CONFIG[opp.recommendation] || REC_CONFIG.ignore;
   const days = daysUntil(opp.application_deadline);
-  const isApplied = opp.is_applied === 1 || !!opp.application_status;
+  const isApplied = opp.is_applied === 1 || (!!opp.application_status && opp.application_status !== 'planning');
   const skills = parseSkills(opp.required_skills);
 
   const applyLink = opp.apply_url || opp.source_url;
@@ -126,8 +127,8 @@ export default function JobHuntDetailDrawer({
       ? '🌐 100% Global Remote (Worldwide)'
       : '🇮🇳 Domestic / Work Authorization Required';
 
-  return (
-    <div className="jh-drawer-overlay" onClick={onClose}>
+  return createPortal(
+    <div className="jh-drawer-overlay" style={{ zIndex: 99999 }} onClick={onClose}>
       <div className="jh-drawer" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="jh-drawer-header">
@@ -675,6 +676,7 @@ export default function JobHuntDetailDrawer({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

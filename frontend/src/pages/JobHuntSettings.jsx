@@ -6,7 +6,6 @@ import BackupSection from '../components/BackupSection.jsx';
 
 export default function JobHuntSettings() {
   const { theme, toggleTheme } = useTheme();
-
   // Settings state
   const [settings, setSettings] = useState({
     jobhunt_threshold_apply_now: '75',

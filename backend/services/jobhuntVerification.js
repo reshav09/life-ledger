@@ -1,3 +1,4 @@
+const { fetchPublic: fetch } = require('./jobhuntFetch');
 const pool = require('../db/db');
 const { isGateMandatory } = require('./jobhuntScoring');
 
@@ -55,11 +56,11 @@ async function checkLinkLiveness(targetUrl) {
       return { alive: false, status: 302, reason: 'Listing closed: redirected to generic careers homepage' };
     }
 
-    return { alive: true, status: res.status, final_url: finalUrl };
+    return { alive: res.ok ? true : null, is_unconfirmed: !res.ok, status: res.status, final_url: finalUrl };
   } catch (err) {
     clearTimeout(timeoutId);
     // Network errors (DNS or timeout) — treat as unconfirmed rather than immediate 404 drop
-    return { alive: true, status: null, is_unconfirmed: true, reason: err.message };
+    return { alive: null, status: null, is_unconfirmed: true, reason: 'Availability could not be confirmed' };
   }
 }
 
@@ -173,10 +174,10 @@ async function verifyOpportunity(opp, profile = null) {
     }
   }
 
-  const isEligibleAndActive = !isExpired && !gateIneligible && !ctcBelowPref && !isStalePosting && linkAlive;
+  const isEligibleAndActive = !isExpired && linkAlive !== false;
 
   let reason = 'Active and Eligible';
-  if (!linkAlive) reason = `Ghost Job: ${linkReason || 'Apply URL returned 404/dead'}`;
+  if (linkAlive === false) reason = `Ghost Job: ${linkReason || 'Apply URL returned 404/dead'}`;
   else if (isExpired) reason = `Application deadline passed (${Math.abs(daysUntilDeadline)} days ago)`;
   else if (isStalePosting && isPrivate) reason = `Private role posted > 15 days ago (${postedDaysAgo}d ago, rolling hiring basis)`;
   else if (isStalePosting && isGovtPsu) reason = `Govt/PSU notification posted > 20 days ago (${postedDaysAgo}d ago)`;
@@ -188,13 +189,15 @@ async function verifyOpportunity(opp, profile = null) {
     title: opp.title,
     org_id: opp.org_id,
     is_active: isEligibleAndActive,
-    is_active_link: linkAlive ? 1 : 0,
+    is_active_link: linkAlive === null ? null : (linkAlive ? 1 : 0),
+    availability_unknown: linkAlive === null,
+    eligible: !gateIneligible && !ctcBelowPref,
     is_expired: isExpired,
     days_left: daysUntilDeadline,
     gate_required: gateRequired,
     gate_ineligible: gateIneligible,
     ctc_below_pref: ctcBelowPref,
-    link_status: linkAlive ? 'accessible' : 'dead_ghost_job',
+    link_status: linkAlive === null ? 'unknown' : linkAlive ? 'accessible' : 'dead_ghost_job',
     link_code: linkHttpCode,
     status_reason: reason
   };
@@ -238,7 +241,7 @@ async function verifyAllOpportunities(options = {}) {
         [check.status_reason, opp.id]
       );
       archivedCount++;
-    } else {
+    } else if (!check.availability_unknown && check.is_active) {
       activeCount++;
       await pool.query(
         `UPDATE jobhunt_opportunities 

@@ -196,19 +196,6 @@ function isGateMandatory(opp) {
     return true;
   }
 
-  // Certain PSU fresher Executive Trainee roles historically and strictly require GATE
-  // (e.g. GAIL ET, ONGC GT/AEE, NTPC EET, IOCL Officer/Engineer via GATE, POWERGRID ET via GATE, NPCIL ET via GATE)
-  const normTitle = (opp.title || '').toLowerCase();
-  const normOrg = (opp.org_name || opp.name || '').toLowerCase();
-  const isTraineeRole = /\b(executive trainee|engineer trainee|graduate trainee|management trainee|probationary officer|aee)\b/i.test(normTitle);
-  const isGateMandatoryPSU = /\b(gail|ongc|ntpc|iocl|powergrid|power grid|npcil|bhel|sail|coal india|cil)\b/i.test(normOrg) ||
-    /\b(gail|ongc|ntpc|iocl|powergrid|npcil)\b/i.test(normTitle);
-
-  if (isTraineeRole && isGateMandatoryPSU) {
-    if (!textToCheck.includes('without gate') && !textToCheck.includes('no gate') && !textToCheck.includes('direct recruitment')) {
-      return true;
-    }
-  }
 
   return false;
 }
@@ -220,19 +207,7 @@ function isGateMandatory(opp) {
 function scoreEligibility(profile, opp) {
   const normTitle = norm(opp.title);
 
-  // 1. Non-technical knockout: retail, hr, audit, legal, sales, social media, liaison, etc.
-  const NON_TECH_REGEX = /\b(retail|sales associate|social media|internal audit|auditor|legal ops|paralegal|people business|people science|learning & development|workplace experience|credit risk|inventory operations|communications associate|derivative sales|law enforcement|market associate|hr systems|customer service|customer support)\b/i;
-  if (NON_TECH_REGEX.test(normTitle) && !/\b(software|developer|devops|sre|cloud|infrastructure|data engineer|ml engineer)\b/i.test(normTitle)) {
-    return 0;
-  }
-
-  // 2. High Seniority / Executive knockout for junior candidate
   const candExp = Number(profile.experience_years) || 0;
-  const SENIORITY_REGEX = /\b(director|vice president|\bvp\b|head of|senior staff|principal engineer|principal product|engineering manager|group product manager)\b/i;
-  if (SENIORITY_REGEX.test(normTitle) && candExp < 3) {
-    return 0;
-  }
-
   // 3. Strict GATE Check: If role mandates GATE and candidate has not given GATE, eligibility = 0!
   if (isGateMandatory(opp) && (!profile.has_gate || profile.has_gate === 0 || profile.has_gate === '0')) {
     return 0;
@@ -641,31 +616,10 @@ function computeOpportunityScore(profile, opp, org = null, customThresholds = {}
   let ctcDisqualified = false;
   let ctcDisqualifyMsg = '';
 
-  if (!isFellowshipOrInternship) {
-    if (isIndianContract && curr === 'INR') {
-      // Domestic or India Remote role: requires ≥ ₹20 LPA for private, or matches pref
-      if (bestCtc > 0 && bestCtc < 2000000 && opp.category_group !== 'psu' && opp.category_group !== 'govt') {
-        ctcDisqualified = true;
-        ctcDisqualifyMsg = `Indian private role below ₹20 LPA cap (offers ₹${(bestCtc / 100000).toFixed(1)} LPA)`;
-      }
-    } else if (isForeign && bestCtc > 0) {
-      if (curr === 'INR' && bestCtc < 8000000) {
-        ctcDisqualified = true;
-        ctcDisqualifyMsg = 'Foreign role compensation below $100k equivalent (₹80 LPA)';
-      } else if (curr === 'EUR' && bestCtc < 70000) {
-        ctcDisqualified = true;
-        ctcDisqualifyMsg = `European Union role compensation below €70k threshold (€${bestCtc})`;
-      } else if (['USD', 'GBP', 'CHF'].includes(curr) && bestCtc < 90000) {
-        ctcDisqualified = true;
-        ctcDisqualifyMsg = `Foreign role compensation below target cap (${curr} ${bestCtc})`;
-      } else if (curr === 'SGD' && bestCtc < 130000) {
-        ctcDisqualified = true;
-        ctcDisqualifyMsg = `Singapore role compensation below S$130k EP threshold (S$${bestCtc})`;
-      }
-    } else if (prefMin > 0 && bestCtc > 0 && (bestCtc < prefMin * 0.65)) {
-      ctcDisqualified = true;
-      ctcDisqualifyMsg = `CTC below preference (offers ₹${(bestCtc / 100000).toFixed(1)} LPA vs ₹${(prefMin / 100000).toFixed(1)} LPA minimum)`;
-    }
+  // Compare only configured minimum in its known currency. Unknown compensation is not a rejection.
+  if (!isFellowshipOrInternship && curr==='INR' && prefMin>0 && bestCtc>0 && bestCtc<prefMin) {
+    ctcDisqualified=true;
+    ctcDisqualifyMsg='Known compensation is below your configured minimum';
   }
 
   let disqualification_reason = null;
@@ -696,11 +650,19 @@ function computeOpportunityScore(profile, opp, org = null, customThresholds = {}
   }
 
   const semantic_similarity_score = computeSemanticSimilarity(profile, opp);
+  const missingRequirements=[];
+  if(opp.min_experience_years==null)missingRequirements.push('Experience requirement not stated');
+  if(!opp.required_degree && !opp.required_branch)missingRequirements.push('Education requirements not stated');
+  if(!opp.location)missingRequirements.push('Location/work authorization not established');
+  const eligibility_status=eligibility_pct===0 || gateDisqualified?'ineligible':missingRequirements.length?'unknown':'eligible';
 
   return {
     eligibility_pct,
     profile_match_pct,
     semantic_similarity_score,
+    eligibility_status,
+    missing_requirements: missingRequirements,
+    scoring_method: 'Keyword/synonym and explicit-requirement heuristic; not a hiring probability',
     compensation_score,
     career_potential_score,
     competition_signal,

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 
 const REC_CONFIG = {
   strong_apply: { label: 'Strong Apply', color: 'var(--green)', bg: 'var(--green-soft)', icon: '🔥' },
@@ -177,9 +178,10 @@ export default function JobHuntSmartIngestModal({ isOpen, onClose, onSaved }) {
     }
   };
 
-  return (
+  return createPortal(
     <div
       className="quick-dump-modal-backdrop"
+      style={{ zIndex: 99999 }}
       onClick={(e) => {
         if (e.target === e.currentTarget && !isProcessing && !isSaving) onClose();
       }}
@@ -727,6 +729,7 @@ export default function JobHuntSmartIngestModal({ isOpen, onClose, onSaved }) {
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

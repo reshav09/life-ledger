@@ -1,0 +1,10 @@
+{
+  "name": "jobhunt-os",
+  "version": "1.0.0",
+  "description": "Autonomous Job Hunt Opportunity Radar & ATS Career Intelligence",
+  "private": true,
+  "scripts": {
+    "build": "cd frontend && npm install && npm run build && cd .. && rm -rf backend/public && cp -r frontend/dist backend/public && cd backend && npm install --omit=dev",
+    "start": "node backend/server.js"
+  }
+}

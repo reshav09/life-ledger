@@ -1,14 +1,18 @@
-import { useEffect, useState } from 'react';
-import { api } from '../api.js';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { api } from '../api.js';
+import JobHuntFollowupReminders from '../components/JobHuntFollowupReminders';
 import JobHuntSmartIngestModal from '../components/JobHuntSmartIngestModal.jsx';
+import JobHuntDetailDrawer from '../components/JobHuntDetailDrawer.jsx';
+import StatCard from '../components/StatCard.jsx';
+import SegmentedControl from '../components/ui/SegmentedControl.jsx';
 import { useDialog } from '../components/DialogProvider.jsx';
 
 const REC_CONFIG = {
-  apply_now:      { icon: '🔥', label: 'Apply Now',      color: '#E05A3A', bg: 'rgba(224,90,58,0.12)' },
-  worth_applying: { icon: '⭐', label: 'Worth Applying', color: '#C9852E', bg: 'rgba(201,133,46,0.12)' },
+  apply_now:      { icon: '🔥', label: 'Apply Now',      color: 'var(--rust)', bg: 'var(--rust-soft)' },
+  worth_applying: { icon: '⭐', label: 'Worth Applying', color: 'var(--brass)', bg: 'var(--brass-soft)' },
   investigate:    { icon: '👀', label: 'Investigate',     color: '#5B7FBA', bg: 'rgba(91,127,186,0.12)' },
-  ignore:         { icon: '❌', label: 'Ignore',          color: '#6E7A8A', bg: 'rgba(110,122,138,0.12)' }
+  ignore:         { icon: '❌', label: 'Ignore',          color: 'var(--ink-faint)', bg: 'var(--hairline)' }
 };
 
 function daysUntil(dateStr) {
@@ -16,15 +20,6 @@ function daysUntil(dateStr) {
   const now = new Date(); now.setHours(0,0,0,0);
   const d = new Date(dateStr); d.setHours(0,0,0,0);
   return Math.ceil((d - now) / (1000 * 60 * 60 * 24));
-}
-
-function urgencyColor(days) {
-  if (days == null) return 'var(--ink-faint)';
-  if (days < 0) return 'var(--ink-faint)';
-  if (days <= 7) return '#E05A3A';
-  if (days <= 14) return '#D97757';
-  if (days <= 30) return '#C9852E';
-  return 'var(--ink-soft)';
 }
 
 export default function JobHuntDashboard() {
@@ -37,515 +32,679 @@ export default function JobHuntDashboard() {
   const [pollMsg, setPollMsg] = useState('');
   const [toastMsg, setToastMsg] = useState('');
   const [applyingId, setApplyingId] = useState(null);
+  const [selectedOpp, setSelectedOpp] = useState(null);
 
-  useEffect(() => { load(); }, []);
+  // Interactive Live Filter State
+  const [activeRecFilter, setActiveRecFilter] = useState('all'); // 'all' | 'apply_now' | 'worth_applying' | 'investigate' | 'applied' | 'due_7d' | 'due_14d'
+  const [activeCategoryFilter, setActiveCategoryFilter] = useState('');
+  const [activeSectorFilter, setActiveSectorFilter] = useState('');
+  const [showAllSectors, setShowAllSectors] = useState(false);
+
+  // Dynamic opportunities state loaded from server
+  const [topOpps, setTopOpps] = useState([]);
+  const [totalMatches, setTotalMatches] = useState(0);
+  const [oppsLoading, setOppsLoading] = useState(false);
+  const isFirstMount = useRef(true);
+
+  async function load() {
+    try {
+      const res = await api.get('/jobhunt/opportunities/dashboard', {
+        params: {
+          filter: activeRecFilter,
+          category_group: activeCategoryFilter,
+          sector: activeSectorFilter,
+          limit: 50
+        }
+      });
+      setData(res);
+      setTopOpps(res.top_opportunities || []);
+      setTotalMatches(res.total_matches ?? res.top_opportunities?.length ?? 0);
+    } catch (err) {
+      console.error('Failed to load job hunt dashboard:', err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  // Fetch updated opportunities dynamically when any filter changes
+  useEffect(() => {
+    if (isFirstMount.current) {
+      isFirstMount.current = false;
+      return;
+    }
+    let cancelled = false;
+    async function fetchFilteredOpps() {
+      setOppsLoading(true);
+      try {
+        const res = await api.get('/jobhunt/opportunities/top', {
+          params: {
+            filter: activeRecFilter,
+            category_group: activeCategoryFilter,
+            sector: activeSectorFilter,
+            limit: 50
+          }
+        });
+        if (!cancelled) {
+          setTopOpps(res.opportunities || []);
+          setTotalMatches(res.total_matches ?? res.opportunities?.length ?? 0);
+        }
+      } catch (err) {
+        console.error('Failed to load top opportunities:', err);
+      } finally {
+        if (!cancelled) {
+          setOppsLoading(false);
+        }
+      }
+    }
+    fetchFilteredOpps();
+    return () => { cancelled = true; };
+  }, [activeRecFilter, activeCategoryFilter, activeSectorFilter]);
+
+  async function handlePollAll() {
+    setIsPolling(true);
+    setPollMsg('Connecting to active ATS endpoints and public feeds…');
+    try {
+      const res = await api.post('/jobhunt/opportunities/poll-active-orgs', {});
+      setPollMsg(res.summary || 'Feed check complete.');
+      await load();
+      setTimeout(() => setPollMsg(''), 8000);
+    } catch (err) {
+      setPollMsg(`Poll failed: ${err.message}`);
+      setTimeout(() => setPollMsg(''), 6000);
+    } finally {
+      setIsPolling(false);
+    }
+  }
 
   async function handleApply(opp) {
-    const directUrl = opp.apply_url || opp.source_url || opp.org_careers_url || opp.org_website;
     setApplyingId(opp.id);
     try {
       const res = await api.post(`/jobhunt/opportunities/${opp.id}/apply`, {});
-      if (directUrl) {
-        window.open(directUrl, '_blank', 'noopener,noreferrer');
+      if (res.apply_url) {
+        window.open(res.apply_url, '_blank', 'noopener,noreferrer');
       }
-      setData(prev => {
-        if (!prev) return prev;
-        const updateOpp = o => o.id === opp.id ? { ...o, is_applied: 1, application_status: 'applied', application_id: res.application_id } : o;
-        return {
-          ...prev,
-          stats: { ...prev.stats, applied: (prev.stats?.applied || 0) + 1 },
-          top_opportunities: (prev.top_opportunities || []).map(updateOpp),
-          recent_opportunities: (prev.recent_opportunities || []).map(updateOpp)
-        };
-      });
-      setToastMsg(`✓ Saved "${opp.title}" to My Applications as "Applied" & opened portal!`);
+      setToastMsg(`✓ Tracked application for ${opp.title} at ${res.org_name || 'Employer'}`);
       setTimeout(() => setToastMsg(''), 6000);
+      await load();
     } catch (err) {
-      alert(`Failed to save application: ${err.message}`);
+      alert(`Could not track application: ${err.message}`);
     } finally {
       setApplyingId(null);
     }
   }
 
   async function handleMarkStatus(opp, status) {
-    const isReject = status === 'rejected';
-    const ok = await confirm(
-      isReject ? `Mark "${opp.title}" as Rejected? It will move to your Rejected & Closed applications.` : `Update status for "${opp.title}" to ${status}?`,
-      { ledger: 'money', danger: isReject, confirmLabel: isReject ? 'Mark Rejected' : 'Update' }
-    );
-    if (!ok) return;
-    try {
-      await api.post(`/jobhunt/opportunities/${opp.id}/mark-status`, { status });
-      setData(prev => {
-        if (!prev) return prev;
-        const updateOpp = o => o.id === opp.id ? { ...o, application_status: status, is_applied: 1 } : o;
-        return {
-          ...prev,
-          top_opportunities: (prev.top_opportunities || []).map(updateOpp),
-          recent_opportunities: (prev.recent_opportunities || []).map(updateOpp)
-        };
-      });
-      setToastMsg(`✓ Marked "${opp.title}" as ${status === 'rejected' ? 'Rejected' : status}`);
-      setTimeout(() => setToastMsg(''), 5000);
-    } catch (err) {
-      alert(`Failed to update status: ${err.message}`);
-    }
-  }
+    if (!await confirm(`Mark application for "${opp.title}" as ${status.toUpperCase()}?`, {
+      ledger: 'jobhunt',
+      confirmLabel: `Mark ${status}`
+    })) return;
 
-  async function load() {
-    setLoading(true);
     try {
-      const d = await api.get('/jobhunt/opportunities/dashboard');
-      setData(d);
+      await api.post(`/jobhunt/opportunities/${opp.id}/status`, { status });
+      setToastMsg(`✓ Application updated to: ${status}`);
+      setTimeout(() => setToastMsg(''), 4000);
+      await load();
     } catch (err) {
-      console.error(err);
+      alert(`Could not update status: ${err.message}`);
     }
-    setLoading(false);
-  }
-
-  async function deleteOpp(id, title) {
-    const name = title ? `"${title}"` : 'this opportunity';
-    if (!await confirm(`Permanently delete ${name}? This cannot be undone.`, { ledger: 'money', danger: true })) return;
-    await api.del(`/jobhunt/opportunities/${id}?permanent=true`);
-    load();
   }
 
   async function archiveOpp(id, title) {
-    const name = title ? `"${title}"` : 'this opportunity';
-    if (!await confirm(`Archive ${name}? You can restore or view it anytime under Opportunities > Archived.`, { ledger: 'money' })) return;
-    await api.del(`/jobhunt/opportunities/${id}`);
-    load();
+    if (!await confirm(`Archive "${title}"? It will be hidden from the active radar.`, {
+      ledger: 'jobhunt',
+      confirmLabel: 'Archive'
+    })) return;
+
+    try {
+      await api.post(`/jobhunt/opportunities/${id}/archive`);
+      await load();
+    } catch (err) {
+      alert(`Archive failed: ${err.message}`);
+    }
   }
 
-  async function handlePollAll() {
-    setIsPolling(true);
-    setPollMsg('Initiating batch poll across active organizations…');
+  async function deleteOpp(id, title) {
+    if (!await confirm(`Permanently delete "${title}"?`, {
+      ledger: 'jobhunt',
+      confirmLabel: 'Delete'
+    })) return;
+
     try {
-      await api.post('/jobhunt/crawler/poll-all', { limit: 20 });
-      
-      const pollTimer = setInterval(async () => {
-        try {
-          const status = await api.get('/jobhunt/crawler/status');
-          const prog = status.crawl_progress;
-          if (prog && prog.is_running) {
-            setPollMsg(`🔄 Polling org ${prog.current_index}/${prog.total}: ${prog.current_org}… (${prog.new_opportunities_count} new jobs found)`);
-          } else {
-            clearInterval(pollTimer);
-            setIsPolling(false);
-            const count = prog?.new_opportunities_count || 0;
-            const total = prog?.total || 0;
-            setPollMsg(`✅ Batch poll complete! Checked ${total} organizations. Discovered ${count} new opportunities.`);
-            load();
-            setTimeout(() => setPollMsg(''), 8000);
-          }
-        } catch {
-          clearInterval(pollTimer);
-          setIsPolling(false);
-        }
-      }, 2000);
+      await api.delete(`/jobhunt/opportunities/${id}`);
+      await load();
     } catch (err) {
-      setPollMsg(`⚠️ Polling error: ${err.message}`);
-      setIsPolling(false);
+      alert(`Delete failed: ${err.message}`);
     }
   }
 
   if (loading) return <div className="empty-state" style={{ minHeight: '40vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Loading radar…</div>;
-
   if (!data) return <div className="empty-state">Failed to load dashboard.</div>;
 
   const { stats, top_opportunities, recent_opportunities, sector_breakdown } = data;
   const hasOpps = stats.total > 0;
 
+  // Sort sectors by frequency descending (plain array sort, no hook violation)
+  const sortedSectors = [...(sector_breakdown || [])].sort((a, b) => (b.cnt || 0) - (a.cnt || 0));
+  const visibleSectors = showAllSectors ? sortedSectors : sortedSectors.slice(0, 10);
+
+  const displayOpps = topOpps;
+
+  const categoryOptions = [
+    { value: '', label: 'All Sectors' },
+    { value: 'startup', label: 'Startups & Scaleups', icon: '🚀' },
+    { value: 'research_internship', label: 'Research Fellowships', icon: '🔬' },
+    { value: 'psu', label: 'PSUs', icon: '🏭' },
+    { value: 'govt', label: 'Govt & R&D', icon: '🏛️' },
+    { value: 'private_in', label: 'Indian Tech', icon: '🇮🇳' },
+    { value: 'quant_hft', label: 'Quant & HFT', icon: '⚡' },
+    { value: 'private_eu', label: 'EU Visa', icon: '🇪🇺' },
+    { value: 'private_global', label: 'Global Remote', icon: '🌐' }
+  ];
+
   return (
     <div>
-      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
-        <div>
-          <div className="page-eyebrow">Your personal opportunity radar</div>
-          <h1 className="page-title">Job Hunt Radar</h1>
-          <p className="page-sub">Discover, score, and track opportunities across government, PSU, defence, and private sectors.</p>
-        </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <button
-            className="btn btn-sm"
-            style={{
-              background: 'linear-gradient(135deg, #7c3aed, #4f46e5)',
-              color: '#fff',
-              border: 'none',
-              fontWeight: 600,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              boxShadow: '0 2px 6px rgba(124, 58, 237, 0.25)'
-            }}
-            onClick={() => setShowSmartIngest(true)}
-          >
-            <span>✨</span> AI Ingest Job / PDF
-          </button>
-          <button
-            className="btn btn-sm"
-            disabled={isPolling}
-            onClick={handlePollAll}
-            style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-          >
-            <span>⚡</span> {isPolling ? 'Polling Orgs…' : 'Poll Active Orgs'}
-          </button>
+      {/* Follow-up Reminders (Renders only when items are overdue) */}
+      <JobHuntFollowupReminders />
+
+      {/* Modern Editorial Page Header */}
+      <div className="page-header" style={{ marginBottom: 20 }}>
+        <div className="page-eyebrow">Opportunity Radar & Ingestion Hub</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+          <div>
+            <h1 className="page-title">Job Hunt Radar</h1>
+            <p className="page-sub">Algorithmic scoring against verified candidate profile claims across tech, research, and public sectors.</p>
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <button
+              className="btn btn-sm"
+              style={{
+                background: 'linear-gradient(135deg, #7c3aed, #4f46e5)',
+                color: '#fff',
+                border: 'none',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6
+              }}
+              onClick={() => setShowSmartIngest(true)}
+            >
+              <span>✨</span> AI Ingest Job / PDF
+            </button>
+            <button
+              className="btn btn-sm"
+              disabled={isPolling}
+              onClick={handlePollAll}
+              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+            >
+              <span>⚡</span> {isPolling ? 'Polling…' : 'Poll Active Orgs'}
+            </button>
+          </div>
         </div>
       </div>
 
       {pollMsg && (
-        <div className="alert-banner alert-info" style={{ marginBottom: 16 }}>
-          <span>{pollMsg}</span>
+        <div className="card" style={{ padding: '10px 14px', marginBottom: 16, background: 'var(--paper-hover)', fontSize: 13 }}>
+          {pollMsg}
         </div>
       )}
 
       {toastMsg && (
-        <div style={{
-          padding: '10px 14px',
-          borderRadius: 8,
-          marginBottom: 16,
-          fontSize: 13,
-          background: 'rgba(34, 197, 94, 0.12)',
-          color: '#16a34a',
-          border: '1px solid rgba(34, 197, 94, 0.35)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 8,
-          fontWeight: 500
-        }}>
+        <div className="card" style={{ padding: '10px 14px', marginBottom: 16, background: 'var(--green-soft)', border: '1px solid var(--green)', color: 'var(--green)', fontSize: 13, fontWeight: 600, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span>{toastMsg}</span>
-          <button
-            type="button"
-            className="btn btn-sm"
-            style={{ padding: '2px 8px', fontSize: 11, background: '#16a34a', color: '#fff', border: 'none', cursor: 'pointer' }}
-            onClick={() => navigate('/applications')}
-          >
+          <button className="btn btn-sm" style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => navigate('/applications')}>
             Go to Applications →
           </button>
         </div>
       )}
 
-      {/* Stats row */}
-      <div className="card-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))' }}>
-        <div className="stat-card">
-          <div className="stat-label">Discovered</div>
-          <div className="stat-value">{stats.total}</div>
-        </div>
-        <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/opportunities?recommendation=apply_now')}>
-          <div className="stat-label">🔥 Apply Now</div>
-          <div className="stat-value" style={{ color: '#E05A3A' }}>{stats.apply_now}</div>
-        </div>
-        <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/opportunities?recommendation=worth_applying')}>
-          <div className="stat-label">⭐ Worth It</div>
-          <div className="stat-value" style={{ color: '#C9852E' }}>{stats.worth_applying}</div>
-        </div>
-        <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/opportunities?recommendation=investigate')}>
-          <div className="stat-label">👀 Investigate</div>
-          <div className="stat-value" style={{ color: '#5B7FBA' }}>{stats.investigate}</div>
-        </div>
-        <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => navigate('/applications')}>
-          <div className="stat-label">📨 Applied</div>
-          <div className="stat-value" style={{ color: '#16a34a' }}>{stats.applied || 0}</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">📅 Due 7d</div>
-          <div className="stat-value" style={{ color: stats.deadlines_7d > 0 ? '#E05A3A' : 'var(--ink-faint)' }}>{stats.deadlines_7d}</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">📅 Due 14d</div>
-          <div className="stat-value" style={{ color: stats.deadlines_14d > 0 ? '#D97757' : 'var(--ink-faint)' }}>{stats.deadlines_14d}</div>
-        </div>
+      {/* Interactive KPI Cards (Click to live-filter the view below) */}
+      <div className="card-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', marginBottom: 16 }}>
+        <StatCard
+          label="Discovered"
+          value={stats.total}
+          active={activeRecFilter === 'all'}
+          onClick={() => setActiveRecFilter('all')}
+        />
+        <StatCard
+          label="Apply Now"
+          value={stats.apply_now}
+          icon="🔥"
+          color="var(--rust)"
+          active={activeRecFilter === 'apply_now'}
+          onClick={() => setActiveRecFilter(activeRecFilter === 'apply_now' ? 'all' : 'apply_now')}
+        />
+        <StatCard
+          label="Worth It"
+          value={stats.worth_applying}
+          icon="⭐"
+          color="var(--brass)"
+          active={activeRecFilter === 'worth_applying'}
+          onClick={() => setActiveRecFilter(activeRecFilter === 'worth_applying' ? 'all' : 'worth_applying')}
+        />
+        <StatCard
+          label="Investigate"
+          value={stats.investigate}
+          icon="👀"
+          color="#5B7FBA"
+          active={activeRecFilter === 'investigate'}
+          onClick={() => setActiveRecFilter(activeRecFilter === 'investigate' ? 'all' : 'investigate')}
+        />
+        <StatCard
+          label="Applied"
+          value={stats.applied || 0}
+          icon="📨"
+          color="var(--green)"
+          active={activeRecFilter === 'applied'}
+          onClick={() => setActiveRecFilter(activeRecFilter === 'applied' ? 'all' : 'applied')}
+        />
+        <StatCard
+          label="Due 7d"
+          value={stats.deadlines_7d}
+          icon="📅"
+          color={stats.deadlines_7d > 0 ? 'var(--rust)' : 'var(--ink-faint)'}
+          active={activeRecFilter === 'due_7d'}
+          onClick={() => setActiveRecFilter(activeRecFilter === 'due_7d' ? 'all' : 'due_7d')}
+        />
+        <StatCard
+          label="Due 14d"
+          value={stats.deadlines_14d}
+          icon="📅"
+          color={stats.deadlines_14d > 0 ? 'var(--brass)' : 'var(--ink-faint)'}
+          active={activeRecFilter === 'due_14d'}
+          onClick={() => setActiveRecFilter(activeRecFilter === 'due_14d' ? 'all' : 'due_14d')}
+        />
       </div>
 
-      {/* Category Hubs Quick Launcher */}
-      {data?.category_counts && (
-        <div style={{
-          display: 'flex',
-          gap: 8,
-          marginTop: 14,
-          marginBottom: 4,
-          overflowX: 'auto',
-          scrollbarWidth: 'none',
-          msOverflowStyle: 'none',
-          padding: '4px 0'
-        }}>
-          {[
-            { id: '', label: 'All Opportunities', icon: '🌟', count: data.category_counts.all },
-            { id: 'startup', label: 'Startups & Scaleups', icon: '🚀', count: data.category_counts.startup },
-            { id: 'research_internship', label: 'Research Fellowships', icon: '🔬', count: data.category_counts.research_internship },
-            { id: 'psu', label: 'PSUs', icon: '🏭', count: data.category_counts.psu },
-            { id: 'govt', label: 'Govt & Strategic R&D', icon: '🏛️', count: data.category_counts.govt },
-            { id: 'private_in', label: 'Indian Tech (≥20 LPA)', icon: '🇮🇳', count: data.category_counts.private_in },
-            { id: 'quant_hft', label: 'Quant & HFT', icon: '⚡', count: data.category_counts.quant_hft },
-            { id: 'private_eu', label: 'EU Visa (≥€100k)', icon: '🇪🇺', count: data.category_counts.private_eu },
-            { id: 'private_sg', label: 'Singapore Visa (≥S$135k)', icon: '🇸🇬', count: data.category_counts.private_sg },
-            { id: 'private_global', label: 'Global Remote', icon: '🌐', count: data.category_counts.private_global }
-          ].map(cat => (
-            <button
-              key={cat.id}
-              className="btn btn-sm"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                fontSize: 12,
-                padding: '5px 12px',
-                background: 'var(--navy-raised)',
-                border: '1px solid var(--hairline)',
-                color: 'var(--ink-soft)',
-                whiteSpace: 'nowrap'
-              }}
-              onClick={() => navigate(cat.id ? `/opportunities?category_group=${cat.id}` : '/opportunities')}
-            >
-              <span>{cat.icon}</span>
-              <span>{cat.label}</span>
-              <span className="jh-cat-count">{cat.count || 0}</span>
-            </button>
-          ))}
-        </div>
-      )}
+      {/* Segmented Category Filter Toolbar */}
+      <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+        <SegmentedControl
+          options={categoryOptions}
+          value={activeCategoryFilter}
+          onChange={setActiveCategoryFilter}
+        />
+        {(activeRecFilter !== 'all' || activeCategoryFilter || activeSectorFilter) && (
+          <button
+            className="btn btn-sm"
+            onClick={() => {
+              setActiveRecFilter('all');
+              setActiveCategoryFilter('');
+              setActiveSectorFilter('');
+            }}
+            style={{ fontSize: 11.5 }}
+          >
+            ✕ Reset Filter ({
+              activeRecFilter === 'apply_now' ? 'Apply Now' :
+              activeRecFilter === 'worth_applying' ? 'Worth It' :
+              activeRecFilter === 'investigate' ? 'Investigate' :
+              activeRecFilter === 'applied' ? 'Applied' :
+              activeRecFilter === 'due_7d' ? 'Due ≤ 7 Days' :
+              activeRecFilter === 'due_14d' ? 'Due ≤ 14 Days' :
+              activeCategoryFilter ? (categoryOptions.find(c => c.value === activeCategoryFilter)?.label || activeCategoryFilter) :
+              activeSectorFilter ? activeSectorFilter : 'Custom'
+            })
+          </button>
+        )}
+      </div>
 
       {!hasOpps ? (
-        <div className="card empty-state" style={{ marginTop: 24 }}>
-          <div style={{ fontSize: 40, marginBottom: 12 }}>🎯</div>
-          <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>No opportunities discovered yet</div>
-          <div style={{ fontSize: 13, color: 'var(--ink-soft)', maxWidth: 420, margin: '0 auto', lineHeight: 1.6 }}>
-            Start by adding organizations to your registry, then add opportunities manually.
-            The scoring engine will rank each one against your profile.
-          </div>
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginTop: 16 }}>
-            <button className="btn btn-primary btn-sm" onClick={() => navigate('/orgs')}>+ Add Organizations</button>
+        <div className="card empty-state" style={{ marginTop: 24, textAlign: 'center', padding: '40px 20px' }}>
+          <div style={{ fontSize: 36, marginBottom: 12 }}>🎯</div>
+          <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>No opportunities discovered yet</div>
+          <p style={{ fontSize: 13, color: 'var(--ink-soft)', maxWidth: 420, margin: '0 auto 16px auto', lineHeight: 1.5 }}>
+            Add target organizations or poll active feeds to trigger the heuristic scoring engine against your profile.
+          </p>
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+            <button className="btn btn-primary btn-sm" onClick={() => navigate('/orgs')}>+ Manage Organizations</button>
             <button className="btn btn-sm" onClick={() => navigate('/opportunities')}>+ Add Opportunity</button>
           </div>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginTop: 20 }}>
-          {/* Top Opportunities */}
-          <div className="card" style={{ gridColumn: '1 / -1' }}>
-            <div className="section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>Top Opportunities</span>
-              <button className="btn btn-sm" onClick={() => navigate('/opportunities')}>View All →</button>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
-              {top_opportunities.map(opp => {
-                const rec = REC_CONFIG[opp.recommendation] || REC_CONFIG.ignore;
-                const days = daysUntil(opp.application_deadline);
-                return (
-                  <div key={opp.id} className="jh-opp-card">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 600, fontSize: 14 }}>{opp.title}</div>
-                        {opp.org_name && <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginTop: 2 }}>{opp.org_name}{opp.org_sector ? ` · ${opp.org_sector}` : ''}</div>}
-                        <div style={{ display: 'flex', gap: 8, marginTop: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-                          {opp.location && <span style={{ fontSize: 11, color: 'var(--ink-faint)' }}>📍 {opp.location}</span>}
-                          {opp.pay_scale && <span style={{ fontSize: 11, color: 'var(--ink-faint)' }}>💰 {opp.pay_scale}</span>}
-                          {opp.vacancies && <span style={{ fontSize: 11, color: 'var(--ink-faint)' }}>👥 {opp.vacancies} vacancies</span>}
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
-                        <span className="jh-rec-badge" style={{ background: rec.bg, color: rec.color }}>{rec.icon} {rec.label}</span>
-                        <span className="jh-score-badge">{opp.opportunity_score}/100</span>
-                      </div>
-                    </div>
-                    {days != null ? (
-                      <div style={{ fontSize: 12, color: urgencyColor(days), marginTop: 8, fontWeight: 500 }}>
-                        {days < 0 ? 'Deadline passed' : days === 0 ? '⚠️ Deadline TODAY' : `📅 ${days} day${days !== 1 ? 's' : ''} left`}
-                      </div>
-                    ) : (
-                      <div style={{ fontSize: 12, color: 'var(--ink-faint)', marginTop: 8, fontWeight: 500 }}>
-                        ⚡ Rolling / Open Requisition
-                      </div>
-                    )}
-                    {/* Score breakdown mini-bars */}
-                    <div className="jh-score-bars">
-                      {[
-                        { label: 'Eligibility', val: opp.eligibility_pct },
-                        { label: 'Match', val: opp.profile_match_pct },
-                        { label: 'Pay', val: opp.compensation_score },
-                        { label: 'Quality', val: opp.org_quality_score },
-                      ].map(d => (
-                        <div key={d.label} className="jh-score-bar-item">
-                          <span className="jh-score-bar-label">{d.label}</span>
-                          <div className="jh-score-bar-track">
-                            <div className="jh-score-bar-fill" style={{ width: `${d.val || 0}%` }} />
-                          </div>
-                          <span className="jh-score-bar-val">{d.val ?? '—'}</span>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Pipeline / Delete Actions */}
-                    <div className="app-pipeline-actions" style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--hairline)', flexWrap: 'wrap' }}>
-                      {(() => {
-                        const destination = opp.apply_url || opp.source_url || opp.org_careers_url || opp.org_website;
-                        const isApplied = opp.is_applied === 1 || !!opp.application_status;
-
-                        return (
-                          <>
-                            {opp.application_status === 'rejected' ? (
-                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                                <span
-                                  style={{
-                                    background: 'rgba(239, 68, 68, 0.12)',
-                                    color: 'var(--rust)',
-                                    border: '1px solid rgba(239, 68, 68, 0.25)',
-                                    padding: '3px 8px',
-                                    fontSize: 11.5,
-                                    fontWeight: 600,
-                                    borderRadius: 6,
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: 4
-                                  }}
-                                  title="Application was marked as rejected in My Applications"
-                                >
-                                  <span>❌</span> Rejected
-                                </span>
-                                <button
-                                  type="button"
-                                  className="btn btn-sm"
-                                  style={{ fontSize: 11, color: 'var(--ink-soft)', padding: '2px 8px' }}
-                                  onClick={() => navigate('/applications')}
-                                  title="View in My Applications"
-                                >
-                                  View App ↗
-                                </button>
-                              </div>
-                            ) : isApplied ? (
-                              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                                <button
-                                  type="button"
-                                  className="jh-table-applied-badge"
-                                  onClick={() => navigate('/applications')}
-                                  title="View in My Applications"
-                                >
-                                  <span>✓</span> Applied ({opp.application_status || 'applied'}) ↗
-                                </button>
-                                <button
-                                  type="button"
-                                  className="btn btn-sm"
-                                  style={{ fontSize: 11, color: 'var(--rust)', borderColor: 'var(--hairline)', padding: '3px 8px' }}
-                                  onClick={() => handleMarkStatus(opp, 'rejected')}
-                                  title="Received a rejection email? Send to Rejected applications"
-                                >
-                                  ✗ Mark Rejected
-                                </button>
-                              </div>
-                            ) : (
-                              <button
-                                type="button"
-                                className="jh-apply-track-btn"
-                                disabled={applyingId === opp.id}
-                                onClick={() => handleApply(opp)}
-                                title={`Open portal & save to Applications: ${destination || 'Apply'}`}
-                              >
-                                <span>{applyingId === opp.id ? '⏳' : '🚀'}</span>
-                                <span>{applyingId === opp.id ? 'Saving…' : 'Apply'}</span>
-                              </button>
-                            )}
-
-                            {destination && (
-                              <a
-                                href={destination}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="btn btn-sm"
-                                style={{ color: 'var(--ink-soft)' }}
-                                title="Open application portal"
-                              >
-                                🔗 Portal ↗
-                              </a>
-                            )}
-                            <button
-                              type="button"
-                              className="btn btn-sm"
-                              style={{ background: 'rgba(217, 119, 87, 0.1)', color: 'var(--rust)', borderColor: 'rgba(217, 119, 87, 0.3)', fontWeight: 600 }}
-                              onClick={() => navigate(`/workspace?oppId=${opp.id}`)}
-                              title="Tailor ATS resume & factual cover letter for this role"
-                            >
-                              📄 Tailor CV ↗
-                            </button>
-                          </>
-                        );
-                      })()}
-                      <button type="button" className="btn btn-sm" onClick={() => archiveOpp(opp.id, opp.title)}>Archive</button>
-                      <button
-                        type="button"
-                        className="btn btn-sm"
-                        style={{ color: 'var(--rust)', borderColor: 'var(--rust)' }}
-                        onClick={() => deleteOpp(opp.id, opp.title)}
-                        title="Delete opportunity"
-                      >
-                        🗑️ Delete
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Sector breakdown */}
-          {sector_breakdown.length > 0 && (
-            <div className="card">
-              <div className="section-title">By Sector</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
-                {sector_breakdown.map(s => (
-                  <span key={s.sector || 'unknown'} className="jh-sector-pill">
-                    {s.sector || 'Uncategorized'} <strong>{s.cnt}</strong>
-                  </span>
-                ))}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {/* Main Top Opportunities Ledger */}
+          <div id="top-opportunities-section" className="card" style={{ padding: '16px 20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--ink)' }}>
+                  Top Ranked Opportunities
+                </h3>
+                <span style={{ fontSize: 12, color: 'var(--ink-soft)' }}>
+                  {totalMatches > displayOpps.length
+                    ? `Showing ${displayOpps.length} of ${totalMatches} matches`
+                    : `Showing ${displayOpps.length} ${displayOpps.length === 1 ? 'match' : 'matches'}`}
+                  {activeRecFilter !== 'all' ? ` filtered by ${
+                    activeRecFilter === 'due_7d' ? 'Due in ≤ 7 days' :
+                    activeRecFilter === 'due_14d' ? 'Due in ≤ 14 days' :
+                    activeRecFilter === 'worth_applying' ? 'Worth It' :
+                    activeRecFilter === 'apply_now' ? 'Apply Now' :
+                    activeRecFilter === 'applied' ? 'Applied' :
+                    activeRecFilter === 'investigate' ? 'Investigate' :
+                    activeRecFilter.replace('_', ' ')
+                  }` : ''}
+                  {activeCategoryFilter ? ` • ${categoryOptions.find(c => c.value === activeCategoryFilter)?.label || activeCategoryFilter}` : ''}
+                  {activeSectorFilter ? ` • Sector: ${activeSectorFilter}` : ''}
+                </span>
               </div>
+              <button
+                className="btn btn-sm"
+                onClick={() => {
+                  if (activeRecFilter === 'applied') {
+                    navigate('/applications');
+                  } else if (activeRecFilter === 'due_7d') {
+                    navigate('/opportunities?deadline=7');
+                  } else if (activeRecFilter === 'due_14d') {
+                    navigate('/opportunities?deadline=14');
+                  } else if (activeRecFilter !== 'all') {
+                    navigate(`/opportunities?recommendation=${activeRecFilter}${activeCategoryFilter ? `&category_group=${activeCategoryFilter}` : ''}`);
+                  } else if (activeCategoryFilter) {
+                    navigate(`/opportunities?category_group=${activeCategoryFilter}`);
+                  } else if (activeSectorFilter) {
+                    navigate(`/opportunities?sector=${encodeURIComponent(activeSectorFilter)}`);
+                  } else {
+                    navigate('/opportunities');
+                  }
+                }}
+              >
+                {activeRecFilter === 'applied'
+                  ? `View Applications (${stats.applied || totalMatches}) →`
+                  : `View Full Registry (${totalMatches > 0 ? totalMatches : stats.total}) →`}
+              </button>
             </div>
-          )}
 
-          {/* Recent discoveries */}
-          {recent_opportunities.length > 0 && (
-            <div className="card">
-              <div className="section-title">Recently Added</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
-                {recent_opportunities.map(opp => {
+            {oppsLoading && displayOpps.length === 0 ? (
+              <div style={{ padding: 32, textAlign: 'center', color: 'var(--ink-soft)', fontSize: 13 }}>
+                Loading opportunities…
+              </div>
+            ) : displayOpps.length === 0 ? (
+              <div style={{ padding: 24, textAlign: 'center', color: 'var(--ink-faint)', fontSize: 13 }}>
+                No opportunities match the current filter selection. Click "Reset Filter" to view all.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, opacity: oppsLoading ? 0.6 : 1, transition: 'opacity 0.15s ease' }}>
+                {displayOpps.map((opp) => {
                   const rec = REC_CONFIG[opp.recommendation] || REC_CONFIG.ignore;
-                  const dest = opp.apply_url || opp.source_url || opp.org_careers_url || opp.org_website;
+                  const days = daysUntil(opp.application_deadline);
+                  const destination = opp.apply_url || opp.source_url || opp.org_careers_url || opp.org_website;
+                  const isApplied = opp.is_applied === 1 || (!!opp.application_status && opp.application_status !== 'planning');
+
                   return (
-                    <div key={opp.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--hairline)' }}>
-                      <div>
-                        {dest ? (
+                    <div
+                      key={opp.id}
+                      style={{
+                        padding: '12px 16px',
+                        borderRadius: 8,
+                        background: 'var(--paper-hover)',
+                        border: '1px solid var(--hairline)',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        gap: 14,
+                        flexWrap: 'wrap',
+                        transition: 'background 0.15s ease, border-color 0.15s ease'
+                      }}
+                    >
+                      {/* Left: Role Info */}
+                      <div style={{ flex: 1, minWidth: 260 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <span
+                            onClick={() => setSelectedOpp(opp)}
+                            style={{ fontWeight: 700, fontSize: 14, color: 'var(--ink)', cursor: 'pointer', textDecoration: 'none' }}
+                            title="Inspect job requirements and match scores"
+                          >
+                            {opp.title}
+                          </span>
+                          <span className={`score-pill ${opp.opportunity_score >= 80 ? 'high' : opp.opportunity_score >= 60 ? 'medium' : 'low'}`}>
+                            {opp.opportunity_score}/100 · {rec.icon} {rec.label}
+                          </span>
+                        </div>
+
+                        <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 3 }}>
+                          <strong>{opp.org_name || 'Employer'}</strong>
+                          {opp.location && <span> • 📍 {opp.location}</span>}
+                          {opp.compensation_display && <span> • 💰 {opp.compensation_display}</span>}
+                          {days != null ? (
+                            <span style={{ color: days <= 7 ? 'var(--rust)' : 'var(--ink-faint)', fontWeight: 600, marginLeft: 6 }}>
+                              • {days < 0 ? 'Deadline passed' : `📅 ${days}d left`}
+                            </span>
+                          ) : (
+                            <span style={{ color: 'var(--ink-faint)', marginLeft: 6 }}>
+                              • ⚡ Rolling Requisition
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Right: Quick Action Buttons */}
+                      <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                        {opp.application_status === 'rejected' ? (
+                          <span className="badge rust" style={{ fontSize: 11 }}>
+                            ❌ Rejected
+                          </span>
+                        ) : isApplied ? (
+                          <span className="badge green" style={{ fontSize: 11 }}>
+                            ✓ Applied
+                          </span>
+                        ) : (
+                          <button
+                            className="btn btn-primary btn-sm"
+                            disabled={applyingId === opp.id}
+                            onClick={() => handleApply(opp)}
+                            style={{ fontSize: 12, padding: '5px 12px' }}
+                          >
+                            {applyingId === opp.id ? 'Saving…' : '🚀 Apply'}
+                          </button>
+                        )}
+
+                        <button
+                          className="btn btn-sm"
+                          onClick={() => setSelectedOpp(opp)}
+                          title="View complete job breakdown and analysis"
+                          style={{ fontSize: 12, padding: '5px 10px' }}
+                        >
+                          🔍 Inspect
+                        </button>
+
+                        <button
+                          className="btn btn-sm"
+                          onClick={() => navigate(`/workspace?oppId=${opp.id}`)}
+                          title="Tailor ATS resume & cover letter"
+                          style={{ fontSize: 12, padding: '5px 10px' }}
+                        >
+                          📄 Workspace
+                        </button>
+
+                        {destination && (
                           <a
-                            href={dest}
+                            href={destination}
                             target="_blank"
                             rel="noopener noreferrer"
-                            style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)', textDecoration: 'none' }}
-                            title={`Open: ${dest}`}
+                            className="btn btn-sm"
+                            style={{ fontSize: 12, padding: '5px 9px', color: 'var(--ink-soft)', textDecoration: 'none' }}
+                            title="Open external application portal"
                           >
-                            {opp.title} ↗
+                            ↗
                           </a>
-                        ) : (
-                          <div style={{ fontSize: 13, fontWeight: 500 }}>{opp.title}</div>
                         )}
-                        {opp.org_name && <div style={{ fontSize: 11.5, color: 'var(--ink-faint)' }}>{opp.org_name}</div>}
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span className="jh-rec-badge" style={{ background: rec.bg, color: rec.color, fontSize: 11 }}>{rec.icon} {opp.opportunity_score}</span>
+
                         <button
-                          type="button"
                           className="icon-btn"
-                          style={{ color: 'var(--rust)', fontSize: 13, padding: '2px 4px' }}
-                          onClick={() => deleteOpp(opp.id, opp.title)}
-                          title="Delete opportunity"
+                          onClick={() => archiveOpp(opp.id, opp.title)}
+                          title="Archive opportunity"
+                          style={{ fontSize: 14 }}
                         >
-                          🗑️
+                          📦
                         </button>
                       </div>
                     </div>
                   );
                 })}
               </div>
-            </div>
-          )}
+            )}
+          </div>
+
+          {/* Bottom Grid: Sector Breakdown & Recently Discovered */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16, alignItems: 'stretch' }}>
+            {/* Sector Breakdown */}
+            {sortedSectors.length > 0 && (
+              <div className="card" style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', height: '100%' }}>
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--ink-faint)' }}>
+                      Distribution by Sector <span style={{ fontWeight: 400, opacity: 0.7 }}>({sortedSectors.length})</span>
+                    </div>
+                    {sortedSectors.length > 10 && (
+                      <button
+                        className="btn btn-sm"
+                        onClick={() => setShowAllSectors(!showAllSectors)}
+                        style={{
+                          fontSize: 11,
+                          padding: '2px 9px',
+                          borderRadius: 'var(--radius-pill)',
+                          background: 'var(--card-hover)',
+                          border: '1px solid var(--hairline)',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {showAllSectors ? 'Show Top 10 ▴' : `View All (${sortedSectors.length}) ▾`}
+                      </button>
+                    )}
+                  </div>
+
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      gap: 6,
+                      maxHeight: showAllSectors ? 280 : 'none',
+                      overflowY: showAllSectors ? 'auto' : 'visible',
+                      paddingRight: showAllSectors ? 4 : 0,
+                      alignContent: 'flex-start'
+                    }}
+                  >
+                    {visibleSectors.map(s => {
+                      const isSelected = activeSectorFilter === s.sector;
+                      return (
+                        <button
+                          key={s.sector || 'unknown'}
+                          className="btn btn-sm"
+                          style={{
+                            fontSize: 11.5,
+                            padding: '4px 10px',
+                            borderRadius: 'var(--radius-pill)',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            background: isSelected ? 'rgba(74, 222, 128, 0.18)' : 'var(--card-hover)',
+                            border: isSelected ? '1px solid var(--green)' : '1px solid var(--hairline)',
+                            color: isSelected ? 'var(--green)' : 'inherit',
+                            transition: 'all 0.15s ease'
+                          }}
+                          onClick={() => {
+                            const next = isSelected ? '' : s.sector;
+                            setActiveSectorFilter(next);
+                            const el = document.getElementById('top-opportunities-section');
+                            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                          }}
+                          title={`Filter radar by ${s.sector || 'General Tech'}`}
+                        >
+                          <span>{s.sector || 'General Tech'}</span>
+                          <strong
+                            style={{
+                              color: isSelected ? 'var(--green)' : 'var(--green)',
+                              background: 'rgba(74, 222, 128, 0.12)',
+                              padding: '1px 6px',
+                              borderRadius: 8,
+                              fontSize: 10.5
+                            }}
+                          >
+                            {s.cnt}
+                          </strong>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Recently Added */}
+            {recent_opportunities && recent_opportunities.length > 0 && (
+              <div className="card" style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', height: '100%' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--ink-faint)' }}>
+                    Recently Added
+                  </div>
+                  <button
+                    className="btn btn-sm"
+                    onClick={() => navigate('/opportunities')}
+                    style={{
+                      fontSize: 11,
+                      padding: '2px 9px',
+                      borderRadius: 'var(--radius-pill)',
+                      background: 'var(--card-hover)',
+                      border: '1px solid var(--hairline)',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    All Radar →
+                  </button>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {recent_opportunities.slice(0, 8).map(opp => (
+                    <div
+                      key={opp.id}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: '6px 0',
+                        borderBottom: '1px solid var(--hairline)',
+                        fontSize: 12.5
+                      }}
+                    >
+                      <div
+                        onClick={() => setSelectedOpp(opp)}
+                        style={{
+                          cursor: 'pointer',
+                          fontWeight: 600,
+                          color: 'var(--ink)',
+                          maxWidth: '72%',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis'
+                        }}
+                        title={`${opp.title} (${opp.org_name})`}
+                      >
+                        {opp.title} <span style={{ color: 'var(--ink-faint)', fontWeight: 400 }}>• {opp.org_name}</span>
+                      </div>
+                      <span className={`score-pill ${opp.opportunity_score >= 80 ? 'high' : opp.opportunity_score >= 60 ? 'medium' : 'low'}`} style={{ fontSize: 10.5 }}>
+                        {opp.opportunity_score}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
+      {/* Slide-over Inspection Drawer for Deep Opportunities */}
+      {selectedOpp && (
+        <JobHuntDetailDrawer
+          opp={selectedOpp}
+          onClose={() => setSelectedOpp(null)}
+          onApply={() => handleApply(selectedOpp)}
+          onArchive={() => { archiveOpp(selectedOpp.id, selectedOpp.title); setSelectedOpp(null); }}
+          onDelete={() => { deleteOpp(selectedOpp.id, selectedOpp.title); setSelectedOpp(null); }}
+          onMarkStatus={(status) => { handleMarkStatus(selectedOpp, status); setSelectedOpp(null); }}
+        />
+      )}
+
+      {/* Smart Ingestion Modal */}
       <JobHuntSmartIngestModal
         isOpen={showSmartIngest}
         onClose={() => setShowSmartIngest(false)}

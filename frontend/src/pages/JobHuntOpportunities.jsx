@@ -139,6 +139,7 @@ export default function JobHuntOpportunities() {
     all: 0, psu: 0, govt: 0, private_in: 0, quant_hft: 0, private_eu: 0, private_sg: 0, private_global: 0
   });
   const [recFilter, setRecFilter] = useState(searchParams.get('recommendation') || '');
+  const [deadlineFilter, setDeadlineFilter] = useState(searchParams.get('deadline') || '');
   const [countryFilter, setCountryFilter] = useState('');
   const [availableCountries, setAvailableCountries] = useState([]);
   const [typeFilter, setTypeFilter] = useState('');
@@ -180,6 +181,7 @@ export default function JobHuntOpportunities() {
     if (typeFilter) params.set('job_type', typeFilter);
     if (catFilter) params.set('category', catFilter);
     if (postedWithin) params.set('posted_within', postedWithin);
+    if (deadlineFilter) params.set('deadline', deadlineFilter);
     if (search) params.set('q', search);
     if (sort === 'deadline') params.set('sort', 'deadline');
     else if (sort === 'newest') params.set('sort', 'newest');
@@ -292,7 +294,7 @@ export default function JobHuntOpportunities() {
   }
 
   // Reload when filters change
-  useEffect(() => { load(); }, [archiveFilter, activeCategoryGroup, countryFilter, recFilter, typeFilter, catFilter, sort, includeIgnored, postedWithin]);
+  useEffect(() => { load(); }, [archiveFilter, activeCategoryGroup, countryFilter, recFilter, typeFilter, catFilter, sort, includeIgnored, postedWithin, deadlineFilter]);
 
   async function submit(e) {
     e.preventDefault();
@@ -381,13 +383,14 @@ export default function JobHuntOpportunities() {
     setTypeFilter('');
     setCatFilter('');
     setPostedWithin('');
+    setDeadlineFilter('');
     setSearch('');
     setSort('score');
     setPsuTier('');
     setIncludeIgnored(false);
   }
 
-  const hasActiveFilters = Boolean(recFilter || countryFilter || typeFilter || catFilter || postedWithin || search || psuTier || sort !== 'score' || includeIgnored);
+  const hasActiveFilters = Boolean(recFilter || deadlineFilter || countryFilter || typeFilter || catFilter || postedWithin || search || psuTier || sort !== 'score' || includeIgnored);
 
   // Client-side PSU tier filtering when 'psu' category is active
   const displayedItems = items.filter(opp => {
@@ -712,6 +715,18 @@ export default function JobHuntOpportunities() {
 
           <select
             className="jh-filter-select"
+            value={deadlineFilter}
+            onChange={e => setDeadlineFilter(e.target.value)}
+            title="Filter by application deadline"
+          >
+            <option value="">⏳ All Deadlines</option>
+            <option value="7">🚨 Due in ≤ 7 Days</option>
+            <option value="14">📅 Due in ≤ 14 Days</option>
+            <option value="30">🗓️ Due in ≤ 30 Days</option>
+          </select>
+
+          <select
+            className="jh-filter-select"
             value={sort}
             onChange={e => setSort(e.target.value)}
             title="Sort opportunities"
@@ -938,7 +953,7 @@ export default function JobHuntOpportunities() {
               {displayedItems.map((opp) => {
                 const rec = REC_CONFIG[opp.recommendation] || REC_CONFIG.ignore;
                 const days = daysUntil(opp.application_deadline);
-                const isApplied = opp.is_applied === 1 || !!opp.application_status;
+                const isApplied = opp.is_applied === 1 || (!!opp.application_status && opp.application_status !== 'planning');
 
                 const regionEmoji =
                   opp.category_group === 'startup' ? '🚀' :
@@ -1140,7 +1155,7 @@ export default function JobHuntOpportunities() {
             const normApply = normalizeUrl(applyLink);
             const normCareers = normalizeUrl(careersLink);
             const hasSeparateCareers = normCareers && normCareers !== normApply;
-            const isApplied = opp.is_applied === 1 || !!opp.application_status;
+            const isApplied = opp.is_applied === 1 || (!!opp.application_status && opp.application_status !== 'planning');
 
             return (
               <div key={opp.id} className="jh-opp-card" onClick={() => setSelectedOpp(opp)} style={{ cursor: 'pointer' }}>

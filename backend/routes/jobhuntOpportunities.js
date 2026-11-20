@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db/db');
+const {syncOpportunityState,recordStatus}=require('../services/jobhuntApplicationState');
 const { computeOpportunityScore, captureScoringFeatures } = require('../services/jobhuntScoring');
 const { verifyAllOpportunities, verifyOpportunity } = require('../services/jobhuntVerification');
 const { runOpportunitiesLifecycle } = require('../services/jobhuntLifecycle');
@@ -72,6 +73,82 @@ async function scoreAndPersist(oppId, preloadedThresholds = null) {
   return { ...opp, ...scores };
 }
 
+// ── Helper: Retrieve filtered top opportunities and total match count for radar ──
+async function getRadarOpportunities({ filter = 'all', category_group = '', sector = '', limit = 50 } = {}) {
+  const whereClauses = ['op.is_archived = 0'];
+  const params = [];
+
+  if (filter === 'apply_now') {
+    whereClauses.push("op.recommendation = 'apply_now'");
+  } else if (filter === 'worth_applying' || filter === 'worth_it') {
+    whereClauses.push("op.recommendation = 'worth_applying'");
+  } else if (filter === 'investigate') {
+    whereClauses.push("op.recommendation = 'investigate'");
+  } else if (filter === 'applied') {
+    whereClauses.push("(op.is_applied = 1 OR EXISTS (SELECT 1 FROM applications a WHERE (a.opportunity_id = op.id OR (a.role = op.title AND a.name = org.name)) AND a.status IN ('applied', 'interview', 'offer', 'rejected', 'cleared')))");
+  } else if (filter === 'due_7d') {
+    whereClauses.push("(op.recommendation != 'ignore' OR op.recommendation IS NULL)");
+    whereClauses.push("op.application_deadline BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)");
+  } else if (filter === 'due_14d') {
+    whereClauses.push("(op.recommendation != 'ignore' OR op.recommendation IS NULL)");
+    whereClauses.push("op.application_deadline BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 14 DAY)");
+  } else {
+    // 'all' / default
+    whereClauses.push("(op.recommendation != 'ignore' OR op.recommendation IS NULL)");
+  }
+
+  if (category_group) {
+    if (category_group.includes(',')) {
+      const groups = category_group.split(',').map(s => s.trim()).filter(Boolean);
+      if (groups.length > 0) {
+        whereClauses.push(`op.category_group IN (${groups.map(() => '?').join(',')})`);
+        params.push(...groups);
+      }
+    } else {
+      whereClauses.push('op.category_group = ?');
+      params.push(category_group);
+    }
+  }
+
+  if (sector) {
+    whereClauses.push('org.sector = ?');
+    params.push(sector);
+  }
+
+  const whereSql = whereClauses.join(' AND ');
+
+  const [countRows] = await pool.query(
+    `SELECT COUNT(*) AS total_matches
+     FROM jobhunt_opportunities op
+     LEFT JOIN jobhunt_organizations org ON op.org_id = org.id
+     WHERE ${whereSql}`,
+    params
+  );
+  const total_matches = countRows[0]?.total_matches || 0;
+
+  let orderSql = 'op.opportunity_score DESC, op.application_deadline ASC';
+  if (filter === 'applied') {
+    orderSql = "COALESCE((SELECT a.id FROM applications a WHERE (a.opportunity_id = op.id OR (a.role = op.title AND a.name = org.name)) AND a.status IN ('applied', 'interview', 'offer', 'rejected', 'cleared') ORDER BY a.id DESC LIMIT 1), op.id) DESC, op.opportunity_score DESC";
+  } else if (filter === 'due_7d' || filter === 'due_14d') {
+    orderSql = 'op.application_deadline ASC, op.opportunity_score DESC';
+  }
+
+  const queryParams = [...params, Math.min(Math.max(Number(limit) || 50, 1), 200)];
+  const [rows] = await pool.query(
+    `SELECT op.*, org.name AS org_name, org.sector AS org_sector, org.careers_url AS org_careers_url, org.website AS org_website,
+       (SELECT a.status FROM applications a WHERE (a.opportunity_id = op.id OR (a.role = op.title AND a.name = org.name)) AND a.status IN ('applied', 'interview', 'offer', 'rejected', 'cleared') ORDER BY a.id DESC LIMIT 1) AS application_status,
+       (SELECT a.id FROM applications a WHERE (a.opportunity_id = op.id OR (a.role = op.title AND a.name = org.name)) AND a.status IN ('applied', 'interview', 'offer', 'rejected', 'cleared') ORDER BY a.id DESC LIMIT 1) AS application_id
+     FROM jobhunt_opportunities op
+     LEFT JOIN jobhunt_organizations org ON op.org_id = org.id
+     WHERE ${whereSql}
+     ORDER BY ${orderSql}
+     LIMIT ?`,
+    queryParams
+  );
+
+  return { rows, total_matches };
+}
+
 // ── Dashboard aggregation ──
 router.get('/dashboard', async (req, res) => {
   try {
@@ -79,7 +156,7 @@ router.get('/dashboard', async (req, res) => {
     const [applyNow] = await pool.query("SELECT COUNT(*) AS cnt FROM jobhunt_opportunities WHERE recommendation = 'apply_now' AND is_archived = 0");
     const [worthApplying] = await pool.query("SELECT COUNT(*) AS cnt FROM jobhunt_opportunities WHERE recommendation = 'worth_applying' AND is_archived = 0");
     const [investigate] = await pool.query("SELECT COUNT(*) AS cnt FROM jobhunt_opportunities WHERE recommendation = 'investigate' AND is_archived = 0");
-    const [appliedCnt] = await pool.query("SELECT COUNT(*) AS cnt FROM jobhunt_opportunities WHERE (is_applied = 1 OR id IN (SELECT DISTINCT opportunity_id FROM applications WHERE opportunity_id IS NOT NULL)) AND is_archived = 0");
+    const [appliedCnt] = await pool.query("SELECT COUNT(*) AS cnt FROM jobhunt_opportunities WHERE (is_applied = 1 OR id IN (SELECT DISTINCT opportunity_id FROM applications WHERE opportunity_id IS NOT NULL AND status IN ('applied', 'interview', 'offer', 'rejected', 'cleared'))) AND is_archived = 0");
 
     const now = new Date().toISOString().slice(0, 10);
     const [d7] = await pool.query('SELECT COUNT(*) AS cnt FROM jobhunt_opportunities WHERE application_deadline BETWEEN ? AND DATE_ADD(?, INTERVAL 7 DAY) AND is_archived = 0', [now, now]);
@@ -125,21 +202,13 @@ router.get('/dashboard', async (req, res) => {
       }
     });
 
-    const [topOpps] = await pool.query(
-      `SELECT op.*, org.name AS org_name, org.sector AS org_sector, org.careers_url AS org_careers_url, org.website AS org_website,
-         (SELECT a.status FROM applications a WHERE a.opportunity_id = op.id OR (a.role = op.title AND a.name = org.name) ORDER BY a.id DESC LIMIT 1) AS application_status,
-         (SELECT a.id FROM applications a WHERE a.opportunity_id = op.id OR (a.role = op.title AND a.name = org.name) ORDER BY a.id DESC LIMIT 1) AS application_id
-       FROM jobhunt_opportunities op
-       LEFT JOIN jobhunt_organizations org ON op.org_id = org.id
-       WHERE op.is_archived = 0 AND (op.recommendation != 'ignore' OR op.recommendation IS NULL)
-       ORDER BY op.opportunity_score DESC, op.application_deadline ASC
-       LIMIT 10`
-    );
+    const { filter = 'all', category_group = '', sector = '', limit = 50 } = req.query;
+    const { rows: topOpps, total_matches } = await getRadarOpportunities({ filter, category_group, sector, limit });
 
     const [recentOpps] = await pool.query(
       `SELECT op.*, org.name AS org_name, org.careers_url AS org_careers_url, org.website AS org_website,
-         (SELECT a.status FROM applications a WHERE a.opportunity_id = op.id OR (a.role = op.title AND a.name = org.name) ORDER BY a.id DESC LIMIT 1) AS application_status,
-         (SELECT a.id FROM applications a WHERE a.opportunity_id = op.id OR (a.role = op.title AND a.name = org.name) ORDER BY a.id DESC LIMIT 1) AS application_id
+         (SELECT a.status FROM applications a WHERE (a.opportunity_id = op.id OR (a.role = op.title AND a.name = org.name)) AND a.status IN ('applied', 'interview', 'offer', 'rejected', 'cleared') ORDER BY a.id DESC LIMIT 1) AS application_status,
+         (SELECT a.id FROM applications a WHERE (a.opportunity_id = op.id OR (a.role = op.title AND a.name = org.name)) AND a.status IN ('applied', 'interview', 'offer', 'rejected', 'cleared') ORDER BY a.id DESC LIMIT 1) AS application_id
        FROM jobhunt_opportunities op
        LEFT JOIN jobhunt_organizations org ON op.org_id = org.id
        WHERE op.is_archived = 0
@@ -162,8 +231,20 @@ router.get('/dashboard', async (req, res) => {
       countries: countryRows.map(r => r.country),
       sector_breakdown: sectorBreakdown,
       top_opportunities: topOpps,
+      total_matches,
       recent_opportunities: recentOpps
     });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Dedicated fast live-filter endpoint for dashboard radar ──
+router.get('/top', async (req, res) => {
+  try {
+    const { filter = 'all', category_group = '', sector = '', limit = 50 } = req.query;
+    const { rows: opportunities, total_matches } = await getRadarOpportunities({ filter, category_group, sector, limit });
+    res.json({ opportunities, total_matches });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -177,12 +258,13 @@ router.get('/', async (req, res) => {
 
     const {
       recommendation, job_type, category, is_archived, q, sort,
-      include_ignored, category_group, country, visa_sponsored, posted_within
+      include_ignored, category_group, country, visa_sponsored, posted_within,
+      deadline
     } = req.query;
 
     let sql = `SELECT op.*, org.name AS org_name, org.sector AS org_sector, org.short_name AS org_short_name, org.careers_url AS org_careers_url, org.website AS org_website,
-                 (SELECT a.status FROM applications a WHERE a.opportunity_id = op.id OR (a.role = op.title AND a.name = org.name) ORDER BY a.id DESC LIMIT 1) AS application_status,
-                 (SELECT a.id FROM applications a WHERE a.opportunity_id = op.id OR (a.role = op.title AND a.name = org.name) ORDER BY a.id DESC LIMIT 1) AS application_id
+                 (SELECT a.status FROM applications a WHERE (a.opportunity_id = op.id OR (a.role = op.title AND a.name = org.name)) AND a.status IN ('applied', 'interview', 'offer', 'rejected', 'cleared') ORDER BY a.id DESC LIMIT 1) AS application_status,
+                 (SELECT a.id FROM applications a WHERE (a.opportunity_id = op.id OR (a.role = op.title AND a.name = org.name)) AND a.status IN ('applied', 'interview', 'offer', 'rejected', 'cleared') ORDER BY a.id DESC LIMIT 1) AS application_id
                FROM jobhunt_opportunities op
                LEFT JOIN jobhunt_organizations org ON op.org_id = org.id`;
     const conditions = [];
@@ -217,6 +299,14 @@ router.get('/', async (req, res) => {
       conditions.push('(op.posted_date >= DATE_SUB(CURDATE(), INTERVAL 15 DAY) OR (op.posted_date IS NULL AND op.discovered_at >= DATE_SUB(NOW(), INTERVAL 15 DAY)))');
     } else if (posted_within === '20') {
       conditions.push('(op.posted_date >= DATE_SUB(CURDATE(), INTERVAL 20 DAY) OR (op.posted_date IS NULL AND op.discovered_at >= DATE_SUB(NOW(), INTERVAL 20 DAY)))');
+    }
+
+    if (deadline === '7') {
+      conditions.push('op.application_deadline BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)');
+    } else if (deadline === '14') {
+      conditions.push('op.application_deadline BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 14 DAY)');
+    } else if (deadline === '30') {
+      conditions.push('op.application_deadline BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 30 DAY)');
     }
 
     if (recommendation) {
@@ -254,13 +344,106 @@ router.get('/', async (req, res) => {
   }
 });
 
+// ── Trigger background refresh across all organizations ──
+router.post('/poll-active-orgs', async (req, res) => {
+  try {
+    const refreshAllData = require('../scripts/refreshAllData');
+    refreshAllData().catch(e => console.error('[poll-active-orgs error]:', e));
+    res.json({ success: true, summary: 'Pulling live jobs across all ATS connectors and organizations…' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Get single opportunity ──
+router.get('/outcome-analytics', async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT id, name, role, status, priority, scoring_features_snapshot, created_at, updated_at,
+       EXISTS(SELECT 1 FROM jobhunt_application_events e WHERE e.application_id=applications.id AND e.event_type='interview') AS had_interview
+       FROM applications
+       WHERE scoring_features_snapshot IS NOT NULL`
+    );
+
+    let totalTracked = rows.length;
+    let interviews = 0;
+    let offers = 0;
+    let rejections = 0;
+    let inProgress = 0;
+
+    const featureAverages = {
+      callback: { score: 0, profile_match: 0, eligibility: 0, compensation: 0, count: 0 },
+      rejection: { score: 0, profile_match: 0, eligibility: 0, compensation: 0, count: 0 }
+    };
+
+    for (const r of rows) {
+      let snap = r.scoring_features_snapshot;
+      if (typeof snap === 'string') {
+        try { snap = JSON.parse(snap); } catch {}
+      }
+      if (!snap) continue;
+
+      const isCallback = Boolean(r.had_interview) || ['interview', 'offer', 'cleared'].includes(r.status);
+      const isRejected = r.status === 'rejected';
+
+      if (isCallback) {
+        if (r.status === 'offer' || r.status === 'cleared') offers++;
+        else interviews++;
+        featureAverages.callback.count++;
+        featureAverages.callback.score += snap.opportunity_score || 0;
+        featureAverages.callback.profile_match += snap.profile_match_pct || 0;
+        featureAverages.callback.eligibility += snap.eligibility_pct || 0;
+        featureAverages.callback.compensation += snap.compensation_score || 0;
+      } else if (isRejected) {
+        rejections++;
+        featureAverages.rejection.count++;
+        featureAverages.rejection.score += snap.opportunity_score || 0;
+        featureAverages.rejection.profile_match += snap.profile_match_pct || 0;
+        featureAverages.rejection.eligibility += snap.eligibility_pct || 0;
+        featureAverages.rejection.compensation += snap.compensation_score || 0;
+      } else {
+        inProgress++;
+      }
+    }
+
+    const computeAvg = group => ({
+      avg_opportunity_score: group.count ? Math.round(group.score / group.count) : 0,
+      avg_profile_match: group.count ? Math.round(group.profile_match / group.count) : 0,
+      avg_eligibility: group.count ? Math.round(group.eligibility / group.count) : 0,
+      avg_compensation: group.count ? Math.round(group.compensation / group.count) : 0,
+      total_count: group.count
+    });
+
+    const callbackRate = totalTracked > 0
+      ? Math.round(((interviews + offers) / totalTracked) * 100)
+      : null;
+
+    res.json({
+      total_tracked: totalTracked,
+      callbacks: interviews + offers,
+      offers,
+      interviews,
+      rejections,
+      in_progress: inProgress,
+      callback_rate_pct: callbackRate,
+      callback_rate_denominator: totalTracked,
+      metric_note: 'Applications with scoring snapshots; unresolved applications included in denominator. Historical interviews are retained.',
+      calibrated_metrics: {
+        successful_profiles: computeAvg(featureAverages.callback),
+        rejected_profiles: computeAvg(featureAverages.rejection)
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.get('/:id', async (req, res) => {
   try {
     const [rows] = await pool.query(
       `SELECT op.*, org.name AS org_name, org.sector AS org_sector, org.careers_url AS org_careers_url, org.website AS org_website,
-         (SELECT a.status FROM applications a WHERE a.opportunity_id = op.id OR (a.role = op.title AND a.name = org.name) ORDER BY a.id DESC LIMIT 1) AS application_status,
-         (SELECT a.id FROM applications a WHERE a.opportunity_id = op.id OR (a.role = op.title AND a.name = org.name) ORDER BY a.id DESC LIMIT 1) AS application_id
+         (SELECT a.status FROM applications a WHERE (a.opportunity_id = op.id OR (a.role = op.title AND a.name = org.name)) AND a.status IN ('applied', 'interview', 'offer', 'rejected', 'cleared') ORDER BY a.id DESC LIMIT 1) AS application_status,
+         (SELECT a.id FROM applications a WHERE (a.opportunity_id = op.id OR (a.role = op.title AND a.name = org.name)) AND a.status IN ('applied', 'interview', 'offer', 'rejected', 'cleared') ORDER BY a.id DESC LIMIT 1) AS application_id
        FROM jobhunt_opportunities op
        LEFT JOIN jobhunt_organizations org ON op.org_id = org.id
        WHERE op.id = ?`,
@@ -530,6 +713,7 @@ router.post('/:id/apply', async (req, res) => {
         : (opp.job_type === 'internship' ? 'internship' : opp.job_type === 'fellowship' ? 'fellowship' : 'job')
     );
     const appStatus = req.body.status || 'applied';
+    if(!['planning','applied','interview','offer','rejected','cleared'].includes(appStatus))return res.status(400).json({error:'Invalid status'});
     const appDeadline = opp.application_deadline || null;
     const directUrl = opp.apply_url || opp.source_url || opp.org_careers_url || opp.org_website || '';
     
@@ -547,9 +731,9 @@ router.post('/:id/apply', async (req, res) => {
     // Check if an application record already exists for this opportunity
     const [existing] = await pool.query(
       `SELECT id, status FROM applications
-       WHERE opportunity_id = ? OR (role = ? AND name = ?)
+       WHERE opportunity_id = ?
        ORDER BY id DESC LIMIT 1`,
-      [oppId, appRole, appName]
+      [oppId]
     );
 
     const scoringSnapshot = JSON.stringify(captureScoringFeatures(opp));
@@ -577,11 +761,8 @@ router.post('/:id/apply', async (req, res) => {
       applicationId = insertRes.insertId;
     }
 
-    // Mark opportunity as applied
-    await pool.query(
-      'UPDATE jobhunt_opportunities SET is_applied = 1, applied_at = NOW() WHERE id = ?',
-      [oppId]
-    );
+    await syncOpportunityState(pool,oppId);
+    if(!existing[0] || existing[0].status!==appStatus)await recordStatus(pool,applicationId,appStatus);
 
     res.json({
       success: true,
@@ -600,6 +781,8 @@ router.post('/:id/apply', async (req, res) => {
 router.post('/:id/unapply', async (req, res) => {
   try {
     const oppId = req.params.id;
+    const [docs]=await pool.query('SELECT id FROM jobhunt_document_packages WHERE opportunity_id=? LIMIT 1',[oppId]);
+    if(docs.length)return res.status(409).json({error:'This opportunity has application document history. Update its status instead of untracking.'});
     await pool.query('UPDATE jobhunt_opportunities SET is_applied = 0, applied_at = NULL WHERE id = ?', [oppId]);
     if (req.body.delete_application) {
       await pool.query('DELETE FROM applications WHERE opportunity_id = ?', [oppId]);
@@ -617,7 +800,7 @@ router.post('/:id/mark-status', async (req, res) => {
   try {
     const oppId = req.params.id;
     const { status, notes } = req.body;
-    if (!status) return res.status(400).json({ error: 'Status is required' });
+    if (!['planning','applied','interview','offer','rejected','cleared'].includes(status)) return res.status(400).json({ error: 'Invalid status' });
 
     // Find application by opportunity_id
     const [apps] = await pool.query(
@@ -658,9 +841,11 @@ router.post('/:id/mark-status', async (req, res) => {
         [appName, appRole, appType, status, directUrl, notes || 'Marked via Job Hunt Radar', 'medium', oppId]
       );
       applicationId = insertRes.insertId;
-      await pool.query('UPDATE jobhunt_opportunities SET is_applied = 1, applied_at = NOW() WHERE id = ?', [oppId]);
+      await syncOpportunityState(pool,oppId);
     }
 
+    await syncOpportunityState(pool,oppId);
+    if(!apps[0] || apps[0].status!==status)await recordStatus(pool,applicationId,status);
     res.json({
       success: true,
       application_id: applicationId,
@@ -672,84 +857,7 @@ router.post('/:id/mark-status', async (req, res) => {
 });
 
 // ── Outcome Feedback Loop & Predictive Calibration ──
-router.get('/outcome-analytics', async (req, res) => {
-  try {
-    const [rows] = await pool.query(
-      `SELECT id, name, role, status, priority, scoring_features_snapshot, created_at, updated_at
-       FROM applications
-       WHERE scoring_features_snapshot IS NOT NULL`
-    );
 
-    let totalTracked = rows.length;
-    let interviews = 0;
-    let offers = 0;
-    let rejections = 0;
-    let inProgress = 0;
-
-    const featureAverages = {
-      callback: { score: 0, profile_match: 0, eligibility: 0, compensation: 0, count: 0 },
-      rejection: { score: 0, profile_match: 0, eligibility: 0, compensation: 0, count: 0 }
-    };
-
-    for (const r of rows) {
-      let snap = r.scoring_features_snapshot;
-      if (typeof snap === 'string') {
-        try { snap = JSON.parse(snap); } catch {}
-      }
-      if (!snap) continue;
-
-      const isCallback = ['interview', 'offer', 'cleared'].includes(r.status);
-      const isRejected = r.status === 'rejected';
-
-      if (isCallback) {
-        if (r.status === 'offer' || r.status === 'cleared') offers++;
-        else interviews++;
-        featureAverages.callback.count++;
-        featureAverages.callback.score += snap.opportunity_score || 0;
-        featureAverages.callback.profile_match += snap.profile_match_pct || 0;
-        featureAverages.callback.eligibility += snap.eligibility_pct || 0;
-        featureAverages.callback.compensation += snap.compensation_score || 0;
-      } else if (isRejected) {
-        rejections++;
-        featureAverages.rejection.count++;
-        featureAverages.rejection.score += snap.opportunity_score || 0;
-        featureAverages.rejection.profile_match += snap.profile_match_pct || 0;
-        featureAverages.rejection.eligibility += snap.eligibility_pct || 0;
-        featureAverages.rejection.compensation += snap.compensation_score || 0;
-      } else {
-        inProgress++;
-      }
-    }
-
-    const computeAvg = group => ({
-      avg_opportunity_score: group.count ? Math.round(group.score / group.count) : 0,
-      avg_profile_match: group.count ? Math.round(group.profile_match / group.count) : 0,
-      avg_eligibility: group.count ? Math.round(group.eligibility / group.count) : 0,
-      avg_compensation: group.count ? Math.round(group.compensation / group.count) : 0,
-      total_count: group.count
-    });
-
-    const callbackRate = (interviews + offers + rejections) > 0
-      ? Math.round(((interviews + offers) / (interviews + offers + rejections)) * 100)
-      : null;
-
-    res.json({
-      total_tracked: totalTracked,
-      callbacks: interviews + offers,
-      offers,
-      interviews,
-      rejections,
-      in_progress: inProgress,
-      callback_rate_pct: callbackRate,
-      calibrated_metrics: {
-        successful_profiles: computeAvg(featureAverages.callback),
-        rejected_profiles: computeAvg(featureAverages.rejection)
-      }
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
 module.exports = router;
 

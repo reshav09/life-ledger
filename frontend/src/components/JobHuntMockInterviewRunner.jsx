@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { api } from '../api';
 
 const SESSION_MODES = [
-  { id: 'behavioral_star', label: 'Behavioral & STAR', icon: '🌟', desc: 'Questions strictly grounded in your verified projects & work history' },
+  { id: 'behavioral_star', label: 'Behavioral & STAR', icon: '🌟', desc: 'Practice using your selected profile or application snapshot' },
   { id: 'technical', label: 'Technical & Domain', icon: '⚡', desc: 'Target role technical deep dive based on job requirements' },
   { id: 'project_deepdive', label: 'Project Architecture', icon: '🔬', desc: 'Deconstruct design trade-offs, concurrency & failure modes of your stack' },
   { id: 'system_design', label: 'System Design', icon: '🏗️', desc: 'Scalable distributed systems tailored to target employer domain' }
@@ -10,6 +10,8 @@ const SESSION_MODES = [
 
 export default function JobHuntMockInterviewRunner({ plan, orgName, roleTitle, opportunityId, applicationId }) {
   const [sessions, setSessions] = useState([]);
+  const [packages,setPackages]=useState([]);
+  const [packageId,setPackageId]=useState('');
   const [activeSession, setActiveSession] = useState(null);
   const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
   const [userAnswer, setUserAnswer] = useState('');
@@ -28,12 +30,12 @@ export default function JobHuntMockInterviewRunner({ plan, orgName, roleTitle, o
 
   async function loadSessions() {
     try {
-      const res = await api.get('/jobhunt/prep/mock', {
-        params: {
-          opportunityId: opportunityId || undefined,
-          applicationId: applicationId || undefined
-        }
-      });
+      const params=new URLSearchParams();
+      if(opportunityId)params.set('opportunityId',opportunityId);
+      if(applicationId)params.set('applicationId',applicationId);
+      const res=await api.get(`/jobhunt/prep/mock?${params}`);
+      const pkgs=await api.get(`/jobhunt/documents/packages${opportunityId?'?opportunity_id='+opportunityId:''}`);
+      setPackages(pkgs);
       setSessions(res || []);
     } catch (err) {
       console.warn('Failed to load past mock sessions:', err);
@@ -47,7 +49,7 @@ export default function JobHuntMockInterviewRunner({ plan, orgName, roleTitle, o
       const res = await api.post('/jobhunt/prep/mock/start', {
         opportunityId: opportunityId || null,
         applicationId: applicationId || null,
-        sessionType
+        sessionType, packageId:packageId || null,targetRole,targetCompany:targetOrg
       });
       setActiveSession(res);
       setCurrentQuestionIdx(0);
@@ -414,6 +416,7 @@ export default function JobHuntMockInterviewRunner({ plan, orgName, roleTitle, o
       )}
 
       {/* Past Sessions Archive */}
+      {!activeSession && <label>Use application version <select value={packageId} onChange={e=>setPackageId(e.target.value)}><option value="">Current confirmed profile</option>{packages.map(p=><option key={p.id} value={p.id}>{p.org_name} — {p.role_title} v{p.version} ({p.status})</option>)}</select></label>}
       {sessions.length > 0 && !activeSession && (
         <div style={{
           background: 'var(--paper)',
@@ -473,3 +476,4 @@ export default function JobHuntMockInterviewRunner({ plan, orgName, roleTitle, o
     </div>
   );
 }
+

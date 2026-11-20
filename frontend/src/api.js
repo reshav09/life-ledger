@@ -25,7 +25,21 @@ async function request(path, options = {}) {
 }
 
 export const api = {
-  get: (path) => request(path),
+  get: (path, optionsOrParams) => {
+    let finalPath = path;
+    const p = optionsOrParams?.params || (optionsOrParams && !optionsOrParams.headers && !optionsOrParams.method ? optionsOrParams : null);
+    if (p) {
+      const q = new URLSearchParams();
+      Object.entries(p).forEach(([k, v]) => {
+        if (v !== undefined && v !== null && v !== '') q.append(k, v);
+      });
+      const qs = q.toString();
+      if (qs) {
+        finalPath += (finalPath.includes('?') ? '&' : '?') + qs;
+      }
+    }
+    return request(finalPath, optionsOrParams && (optionsOrParams.headers || optionsOrParams.method) ? optionsOrParams : {});
+  },
   post: (path, data) => request(path, { method: 'POST', body: JSON.stringify(data) }),
   put: (path, data) => request(path, { method: 'PUT', body: JSON.stringify(data) }),
   del: (path) => request(path, { method: 'DELETE' }),

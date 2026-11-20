@@ -1,5 +1,6 @@
 const pool = require('../db/db');
 const { getEvidenceBase } = require('./jobhuntEvidence');
+const {parseJson}=require('./jobhuntDocuments');
 
 /**
  * Generate 5 role-specific interview questions strictly grounded in:
@@ -7,18 +8,12 @@ const { getEvidenceBase } = require('./jobhuntEvidence');
  * 2. Submitted Document Package (or candidate's verified profile evidence)
  */
 async function generateQuestionsForSession({ opportunity, targetRole, targetCompany, sessionType, packageDoc }) {
-  const evidence = await getEvidenceBase();
-  const verifiedClaims = evidence.claims || [];
-  
-  // Extract key project/experience highlights
-  const expClaims = verifiedClaims.filter(c => c.category === 'experience');
-  const projClaims = verifiedClaims.filter(c => c.category === 'project');
-  const skillClaims = verifiedClaims.filter(c => c.category === 'skill');
-
-  const exp1 = expClaims[0]?.claim_text || 'AWS cloud optimization and distributed backend microservices';
-  const exp2 = expClaims[1]?.claim_text || 'Automating ERP ingestion pipelines and PostgreSQL database tuning';
-  const proj1 = projClaims[0]?.claim_text || 'Life Ledger full-stack personal operating system with MariaDB and Docker';
-  const topSkills = skillClaims.slice(0, 8).map(s => s.claim_text).join(', ') || 'Node.js, React, Docker, SQL, Python';
+  const evidence = parseJson(packageDoc?.evidence_snapshot,null) || await getEvidenceBase();
+  const expClaims=evidence.work_experience || [],projClaims=evidence.project || [],skillClaims=evidence.skill || [];
+  const exp1=expClaims[0]?.claim || 'Choose a confirmed work example from your own experience.';
+  const exp2=expClaims[1]?.claim || exp1;
+  const proj1=projClaims[0]?.claim || 'Choose one of your own verified projects.';
+  const topSkills=skillClaims.slice(0,8).map(x=>x.claim).join(', ') || 'Use the technologies relevant to the posting.';
 
   const questions = [];
 
@@ -427,80 +422,34 @@ async function generateQuestionsForSession({ opportunity, targetRole, targetComp
     }
   }
 
-  return questions;
+  return questions.map(q=>({...q,evidence_kind:[exp1,exp2,proj1].includes(q.groundedEvidence) && [...expClaims,...projClaims].some(e=>e.claim===q.groundedEvidence)?'confirmed_snapshot':'practice_reference'}));
 }
 
 /**
  * Grade user response and provide structured STAR/technical feedback
  */
 function evaluateUserAnswer(question, answer) {
-  if (!answer || answer.trim().length < 15) {
-    return {
-      score: 25,
-      verdict: 'Too brief',
-      feedback: 'Answer is too short to demonstrate depth. Aim for a thorough 3 to 5 paragraph breakdown addressing all parts of the prompt.',
-      suggestions: [
-        'Mention concrete technologies and specific metrics or scale.',
-        'Structure according to the Situation, Task, Action, and Result (STAR) framework.',
-        'Explain the trade-offs of your chosen approach vs alternatives.'
-      ]
-    };
-  }
-
-  const wordCount = answer.trim().split(/\s+/).length;
-  let score = 50;
-  const feedbackPoints = [];
-  const suggestions = [];
-
-  // Check metrics / numbers
-  const hasNumbers = /\b\d+(%|x|ms|s|h|gb|mb|k|l|users|requests)?\b/i.test(answer);
-  if (hasNumbers) {
-    score += 15;
-    feedbackPoints.push('Great job citing quantifiable metrics and numbers.');
-  } else {
-    suggestions.push('Include specific quantifiable metrics (e.g. latency reduced by X%, cost reduced by Y%, throughput handled).');
-  }
-
-  // Check STAR structure
-  const lower = answer.toLowerCase();
-  const hasSituation = lower.includes('situation') || lower.includes('context') || lower.includes('background') || lower.includes('when i was');
-  const hasAction = lower.includes('action') || lower.includes('i built') || lower.includes('i implemented') || lower.includes('i designed') || lower.includes('i investigated');
-  const hasResult = lower.includes('result') || lower.includes('outcome') || lower.includes('saved') || lower.includes('improved') || lower.includes('finally');
-
-  if (hasSituation && hasAction && hasResult) {
-    score += 20;
-    feedbackPoints.push('Clean STAR structure detected (Situation, Action, Result).');
-  } else if (hasAction && hasResult) {
-    score += 12;
-    feedbackPoints.push('Good focus on personal actions and outcomes.');
-  } else {
-    suggestions.push('Clearly separate your personal Action from the team context, and conclude with the concrete Result.');
-  }
-
-  // Length score
-  if (wordCount >= 100 && wordCount <= 400) {
-    score += 15;
-    feedbackPoints.push(`Optimal answer length (${wordCount} words).`);
-  } else if (wordCount < 100) {
-    suggestions.push('Expand your explanation with more architectural or operational depth (ideal range: 120–250 words).');
-  } else {
-    suggestions.push('Answer is quite lengthy; keep it punchy to avoid losing the interviewer’s attention.');
-  }
-
-  score = Math.min(100, Math.max(30, score));
-
-  return {
-    score,
-    verdict: score >= 80 ? 'Strong Answer' : score >= 60 ? 'Competent Answer' : 'Needs Polish',
-    feedback: feedbackPoints.join(' ') || 'Answer addressed the question.',
-    suggestions: suggestions.length > 0 ? suggestions : ['Practice delivering this answer out loud in under 2 minutes.']
-  };
+ const text=String(answer || '').trim(),words=text.toLowerCase().match(/[a-z]{4,}/g) || [];
+ const stop=new Set(['what','when','which','that','with','your','have','from','this','explain','describe','would','does','their','into','using','question','steps','through']);
+ const topics=[...new Set(`${question.question || ''} ${question.groundedEvidence || ''}`.toLowerCase().match(/[a-z]{4,}/g) || [])].filter(x=>!stop.has(x));
+ const matched=topics.filter(t=>words.includes(t));
+ const relevant=matched.length>=Math.min(2,topics.length) && topics.length>0;
+ let score=text.length<15?10:30;
+ if(relevant)score+=25;
+ if(words.length>=60&&words.length<=350)score+=10;
+ if(/\b(action|implemented|designed|investigated)\b/i.test(text))score+=10;
+ if(/\b(result|outcome|improved|learned)\b/i.test(text))score+=5;
+ if(!relevant)score=Math.min(score,35);
+ return {score,verdict:relevant?'Structure review — verify technical accuracy':'Answer may be off-topic',
+   assessment_scope:'Structure and topic overlap only. Technical correctness and truthfulness are not assessed.',technical_correctness:null,
+   feedback:relevant?'Some question terms and answer structure are present. This is not a technical pass/fail assessment.':'The answer does not clearly address the question topics.',
+   suggestions:relevant?['Check technical claims with authoritative material or a human reviewer.','Use only genuine examples and explain trade-offs.']:['Answer the actual question with a relevant, verified example.']};
 }
 
 /**
  * Start a new mock session
  */
-async function startMockSession({ opportunityId, applicationId, packageId, sessionType = 'technical' }) {
+async function startMockSession({ opportunityId, applicationId, packageId, targetRole, targetCompany, sessionType = 'technical' }) {
   let opp = null;
   if (opportunityId) {
     const [rows] = await pool.query(
@@ -519,8 +468,10 @@ async function startMockSession({ opportunityId, applicationId, packageId, sessi
     if (pkgRows.length > 0) pkg = pkgRows[0];
   }
 
-  const roleTitle = opp?.title || pkg?.target_role || 'Software Engineer';
-  const orgName = opp?.org_name || pkg?.target_company || 'Target Organization';
+  const roleTitle = opp?.title || pkg?.role_title || targetRole || 'Software Engineer';
+  const orgName = opp?.org_name || pkg?.org_name || targetCompany || 'Target Organization';
+  if(pkg && opp && Number(pkg.opportunity_id)!==Number(opp.id))throw new Error('Package does not match the selected opportunity');
+  if(pkg){applicationId=pkg.application_id;opportunityId=pkg.opportunity_id;}
   const stageName = sessionType === 'behavioral_star' ? 'Behavioral (STAR)'
     : sessionType === 'project_deepdive' ? 'Project Deep-Dive'
     : sessionType === 'system_design' ? 'System Design'
@@ -574,7 +525,7 @@ async function submitQuestionAnswer(sessionId, questionIndex, answer) {
   const session = rows[0];
   const questions = typeof session.questions_json === 'string' ? JSON.parse(session.questions_json) : session.questions_json;
 
-  if (questionIndex < 0 || questionIndex >= questions.length) {
+  if (!Number.isInteger(questionIndex) || questionIndex < 0 || questionIndex >= questions.length || typeof answer!=='string' || answer.length>20000) {
     throw new Error('Invalid question index');
   }
 
@@ -647,6 +598,8 @@ async function listMockSessions({ opportunityId, applicationId }) {
 }
 
 module.exports = {
+  evaluateUserAnswer,
+  generateQuestionsForSession,
   startMockSession,
   submitQuestionAnswer,
   getMockSession,

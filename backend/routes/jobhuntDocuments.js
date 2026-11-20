@@ -5,11 +5,14 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db/db');
-const { draftDocumentPackage } = require('../services/jobhuntDocuments');
+const { draftDocumentPackage, prepareInputs } = require('../services/jobhuntDocuments');
 const { reviewDocumentPackage } = require('../services/jobhuntDocumentReview');
-const { renderAtsHtml } = require('../services/jobhuntDocumentRenderer');
-const { syncProfileEvidence, getEvidenceBase } = require('../services/jobhuntEvidence');
-const { logApplicationEvent, getApplicationEvents, generateFollowupDraft } = require('../services/jobhuntFollowups');
+const { renderAtsHtml, renderPdf } = require('../services/jobhuntDocumentRenderer');
+const { syncProfileEvidence, getEvidenceBase, listEvidenceClaims, confirmEvidence } = require('../services/jobhuntEvidence');
+const { logApplicationEvent, getApplicationEvents, generateFollowupDraft, dueFollowups, updateReminder } = require('../services/jobhuntFollowups');
+
+const { enqueueGeneration, getJob, changeJob } = require('../services/jobhuntGenerationJobs');
+const { saveRevision, approvePackage, submitPackage } = require('../services/jobhuntDocumentVersions');
 
 // ── 1. Document Packages ──
 
@@ -56,60 +59,72 @@ router.get('/packages/:id', async (req, res) => {
   }
 });
 
-// Generate new tailored document package
-router.post('/generate', async (req, res) => {
+// Instant synchronous tailored document package generation
+router.post('/generate-instant', async (req, res) => {
   try {
-    const { opportunity_id, application_id, custom_job_description, target_org, target_role } = req.body;
-    const drafted = await draftDocumentPackage({
+    const { opportunity_id, application_id, custom_job_description, target_org, target_role, force_regenerate } = req.body;
+    
+    // Check if an existing package already exists for this opportunity unless forced
+    if (opportunity_id && !force_regenerate && !custom_job_description) {
+      const [existing] = await pool.query(
+        'SELECT id FROM jobhunt_document_packages WHERE opportunity_id = ? ORDER BY version DESC, id DESC LIMIT 1',
+        [opportunity_id]
+      );
+      if (existing.length > 0) {
+        return res.json({ success: true, package_id: existing[0].id, already_existed: true });
+      }
+    }
+    
+    const prepared = await prepareInputs({
       opportunityId: opportunity_id,
       applicationId: application_id,
       customJobDescription: custom_job_description,
       targetOrg: target_org,
-      targetRole: target_role
+      targetRole: target_role,
+      useAI: req.body.use_ai === true
     });
-
-    // Automatically trigger initial review
-    const review = await reviewDocumentPackage(drafted.packageId);
-
-    // If linked to an application, log an event
-    if (application_id) {
-      await logApplicationEvent({
-        applicationId: application_id,
-        eventType: 'package_drafted',
-        title: `Drafted tailored package v1 for ${drafted.orgName}`,
-        metadata: { packageId: drafted.packageId, score: review.reviewScore }
-      });
-    }
-
-    res.json({
-      success: true,
-      package_id: drafted.packageId,
-      org_name: drafted.orgName,
-      role_title: drafted.roleTitle,
-      review_score: review.reviewScore,
-      hallucination_risk: review.hallucinationRisk
-    });
+    
+    const drafted = await draftDocumentPackage({ prepared });
+    await reviewDocumentPackage(drafted.packageId);
+    
+    res.json({ success: true, package_id: drafted.packageId, already_existed: false });
   } catch (err) {
+    console.error('Instant generate error:', err);
     res.status(500).json({ error: err.message });
   }
 });
 
+// Generate new tailored document package
+router.post('/generate', async (req,res)=>{
+ try{const b=req.body;const job=await enqueueGeneration({opportunityId:b.opportunity_id,applicationId:b.application_id,
+   customJobDescription:b.custom_job_description,targetOrg:b.target_org,targetRole:b.target_role,useAI:b.use_ai===true},b.request_key);
+   res.status(202).json({job_id:job.id,...job});
+ }catch(e){res.status(400).json({error:e.message});}
+});
+router.get('/jobs/:id',async(req,res)=>{const job=await getJob(req.params.id).catch(()=>null);if(!job)return res.status(404).json({error:'Generation job not found'});res.json(job);});
+router.post('/jobs/:id/:action',async(req,res)=>{try{res.json(await changeJob(req.params.id,req.params.action));}catch(e){res.status(400).json({error:e.message});}});
+
 // Update package content (edits to markdown)
-router.put('/packages/:id', async (req, res) => {
-  try {
-    const { tailored_resume_markdown, tailored_cover_letter_markdown, status } = req.body;
-    await pool.query(
-      `UPDATE jobhunt_document_packages SET
-         tailored_resume_markdown = COALESCE(?, tailored_resume_markdown),
-         tailored_cover_letter_markdown = COALESCE(?, tailored_cover_letter_markdown),
-         status = COALESCE(?, status)
-       WHERE id = ?`,
-      [tailored_resume_markdown, tailored_cover_letter_markdown, status, req.params.id]
-    );
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+router.put('/packages/:id',async(req,res)=>{
+ try{if(req.body.status)throw new Error('Use the explicit approval or submission action.');res.json({success:true,...await saveRevision(req.params.id,req.body)});}
+ catch(e){res.status(400).json({error:e.message});}
+});
+router.post('/packages/:id/approve',async(req,res)=>{try{res.json(await approvePackage(req.params.id,req.body));}catch(e){res.status(400).json({error:e.message});}});
+router.post('/packages/:id/submit',async(req,res)=>{try{res.json(await submitPackage(req.params.id,req.body));}catch(e){res.status(400).json({error:e.message});}});
+router.get('/packages/:id/versions',async(req,res)=>{try{const [[p]]=await pool.query('SELECT id,root_package_id FROM jobhunt_document_packages WHERE id=?',[req.params.id]);if(!p)return res.status(404).json({error:'Package not found'});const root=p.root_package_id || p.id;const [rows]=await pool.query('SELECT id,version,status,created_at,submitted_at FROM jobhunt_document_packages WHERE id=? OR root_package_id=? ORDER BY version DESC',[root,root]);res.json(rows);}catch(e){res.status(500).json({error:e.message});}});
+router.get('/packages/:id/pdf/:docType',async(req,res)=>{
+ try{const type=req.params.docType;if(!['resume','cover_letter'].includes(type))return res.status(400).json({error:'Invalid document type'});
+ const [[p]]=await pool.query('SELECT * FROM jobhunt_document_packages WHERE id=?',[req.params.id]);if(!p)return res.status(404).json({error:'Package not found'});
+ const [[artifact]]=await pool.query('SELECT content FROM jobhunt_document_artifacts WHERE package_id=? AND doc_type=?',[p.id,type]);
+ const bytes=artifact?.content || await renderPdf({title:`${p.org_name} — ${type}`,contentMarkdown:type==='resume'?p.tailored_resume_markdown:p.tailored_cover_letter_markdown});
+ if(!artifact?.content){
+   const hash=require('node:crypto').createHash('sha256').update(bytes).digest('hex');
+   await pool.query('INSERT IGNORE INTO jobhunt_document_artifacts (package_id,doc_type,sha256,content) VALUES (?,?,?,?)',[p.id,type,hash,bytes]);
+   const [[saved]]=await pool.query('SELECT content FROM jobhunt_document_artifacts WHERE package_id=? AND doc_type=?',[p.id,type]);
+   if(saved?.content){res.setHeader('Content-Type','application/pdf');res.setHeader('Content-Disposition',`attachment; filename="${type}-v${p.version}.pdf"`);return res.send(saved.content);}
+ }
+ res.setHeader('Content-Type','application/pdf');res.setHeader('Content-Disposition',`attachment; filename="${type}-v${p.version}.pdf"`);res.send(bytes);
+ }catch(e){res.status(500).json({error:e.message});}
 });
 
 // Re-run anti-hallucination review
@@ -125,7 +140,8 @@ router.post('/packages/:id/review', async (req, res) => {
 // Render ATS printable HTML
 router.get('/packages/:id/render/:docType', async (req, res) => {
   try {
-    const { docType } = req.params; // 'resume' or 'cover_letter'
+    const { docType } = req.params;
+    if(!['resume','cover_letter'].includes(docType))return res.status(400).send('Invalid document type');
     const [packages] = await pool.query('SELECT * FROM jobhunt_document_packages WHERE id = ?', [req.params.id]);
     if (packages.length === 0) return res.status(404).send('Package not found');
     const pkg = packages[0];
@@ -140,6 +156,7 @@ router.get('/packages/:id/render/:docType', async (req, res) => {
     });
 
     res.setHeader('Content-Type', 'text/html');
+    res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'");
     res.send(html);
   } catch (err) {
     res.status(500).send(err.message);
@@ -148,6 +165,8 @@ router.get('/packages/:id/render/:docType', async (req, res) => {
 
 // ── 2. Evidence Base ──
 
+router.get('/evidence/claims',async(req,res)=>{try{res.json(await listEvidenceClaims());}catch(e){res.status(500).json({error:e.message});}});
+router.post('/evidence/confirm',async(req,res)=>{try{res.json(await confirmEvidence(req.body.ids));}catch(e){res.status(400).json({error:e.message});}});
 router.get('/evidence', async (req, res) => {
   try {
     const evidence = await getEvidenceBase();
@@ -167,6 +186,8 @@ router.post('/evidence/sync', async (req, res) => {
 });
 
 // ── 3. Application Events & Follow-ups ──
+router.get('/reminders',async(req,res)=>{try{res.json(await dueFollowups());}catch(e){res.status(500).json({error:e.message});}});
+router.post('/reminders/:id',async(req,res)=>{try{res.json(await updateReminder(req.params.id,req.body));}catch(e){res.status(400).json({error:e.message});}});
 
 router.get('/applications/:id/events', async (req, res) => {
   try {
@@ -207,3 +228,4 @@ router.get('/applications/:id/followup-draft', async (req, res) => {
 });
 
 module.exports = router;
+

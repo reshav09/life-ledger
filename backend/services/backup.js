@@ -23,15 +23,20 @@ const TABLES = [
   // ── Job Hunt Ledger ──
   'jobhunt_profile', 'jobhunt_organizations', 'jobhunt_opportunities', 'jobhunt_content_hashes',
   'jobhunt_interview_prep', 'jobhunt_question_bank', 'jobhunt_evidence_claims',
-  'jobhunt_document_packages', 'jobhunt_document_reviews', 'jobhunt_application_events', 'jobhunt_mock_sessions'
+  'jobhunt_document_packages', 'jobhunt_document_reviews', 'jobhunt_application_events', 'jobhunt_mock_sessions',
+  'jobhunt_generation_jobs', 'jobhunt_document_artifacts', 'jobhunt_followup_reminders', 'schema_migrations'
 ];
 
 async function runBackup() {
   if (!fs.existsSync(BACKUP_DIR)) fs.mkdirSync(BACKUP_DIR, { recursive: true });
   const data = {};
   for (const table of TABLES) {
-    const [rows] = await pool.query(`SELECT * FROM ${table}`);
-    data[table] = rows;
+    try {
+      const [rows] = await pool.query(`SELECT * FROM ${table}`);
+      data[table] = rows;
+    } catch {
+      // Table doesn't exist in standalone mode; safely skip
+    }
   }
   const filename = `backup-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
   fs.writeFileSync(path.join(BACKUP_DIR, filename), JSON.stringify(data, null, 2));
@@ -58,25 +63,33 @@ function listBackups() {
 // MySQL's DATETIME/DATE columns don't accept that format directly, so convert
 // it to "YYYY-MM-DD HH:MM:SS" without shifting the actual moment in time.
 function coerceValue(v) {
+  if(v && v.type==='Buffer' && Array.isArray(v.data))return Buffer.from(v.data);
   if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(v)) {
     return v.replace('T', ' ').replace(/\.\d+Z?$/, '').replace(/Z$/, '');
   }
   return v;
 }
 
-// Destructive: wipes every table listed above and reloads it from the backup.
+// Explicit restore replaces only tables present in this backup; omitted ledgers are preserved.
 // Wrapped in a real transaction so a failure partway through rolls back
 // cleanly instead of leaving the database half-empty.
 async function restoreBackup(data) {
+  if(!data || typeof data!=='object' || Array.isArray(data))throw new Error('Invalid backup');
+  const restoredTables=TABLES.filter(t=>Object.hasOwn(data,t));
+  if(!restoredTables.length)throw new Error('Backup contains no recognized tables');
+  for(const table of restoredTables){
+    if(!Array.isArray(data[table]))throw new Error(`Invalid backup table: ${table}`);
+    for(const row of data[table])if(!row || typeof row!=='object' || Object.keys(row).some(k=>!/^[_a-zA-Z][_a-zA-Z0-9]*$/.test(k)))throw new Error(`Invalid backup row in ${table}`);
+  }
   const conn = await pool.getConnection();
   try {
     await conn.query('SET FOREIGN_KEY_CHECKS=0');
     await conn.beginTransaction();
-    for (const table of [...TABLES].reverse()) {
+    for (const table of [...restoredTables].reverse()) {
       await conn.query(`DELETE FROM ${table}`);
     }
-    for (const table of TABLES) {
-      const rows = data[table] || [];
+    for (const table of restoredTables) {
+      const rows = data[table];
       for (const row of rows) {
         const cols = Object.keys(row);
         if (cols.length === 0) continue;

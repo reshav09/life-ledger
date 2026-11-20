@@ -1,3 +1,4 @@
+const { fetchPublic: fetch } = require('./jobhuntFetch');
 /**
  * Job Hunt ATS API Service
  * High-speed direct ingestion connector for public applicant tracking systems
@@ -243,24 +244,64 @@ function normalizeAshbyJob(j, slug) {
  * Endpoint: https://api.smartrecruiters.com/v1/companies/{slug}/postings
  */
 async function fetchSmartRecruitersPostings(slug) {
-  const url = `https://api.smartrecruiters.com/v1/companies/${encodeURIComponent(slug)}/postings?limit=100`;
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 12000);
+  const base = `https://api.smartrecruiters.com/v1/companies/${encodeURIComponent(slug)}/postings`;
+  const jobs = [];
+  const maxPages = 2; // Check up to 200 postings
 
-  try {
-    const res = await fetch(url, {
-      signal: controller.signal,
-      headers: { 'User-Agent': USER_AGENT, 'Accept': 'application/json' }
-    });
-    clearTimeout(timeoutId);
+  for (let page = 0; page < maxPages; page++) {
+    const offset = page * 100;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
 
-    if (!res.ok) throw new Error(`SmartRecruiters API returned HTTP ${res.status}`);
-    const data = await res.json();
-    return (data.content || []).map(j => normalizeSmartRecruitersJob(j, slug));
-  } catch (err) {
-    clearTimeout(timeoutId);
-    throw err;
+    let batch = [];
+    try {
+      const res = await fetch(`${base}?limit=100&offset=${offset}`, {
+        signal: controller.signal,
+        headers: { 'Accept': 'application/json', 'User-Agent': USER_AGENT }
+      });
+      clearTimeout(timeoutId);
+      if (!res.ok) throw new Error(`SmartRecruiters HTTP ${res.status}`);
+      const data = await res.json();
+      batch = data.content || [];
+    } catch (err) {
+      clearTimeout(timeoutId);
+      if (page === 0) throw err;
+      break;
+    }
+
+    if (!batch.length) break;
+
+    // Filter relevant tech roles FIRST before fetching details!
+    const techBatch = batch.filter(j => isRelevantTechRole(j.name));
+
+    // Enrich up to 15 tech roles in parallel with a 4s timeout
+    const rolesToEnrich = techBatch.slice(0, 15 - jobs.length);
+    const enriched = await Promise.all(rolesToEnrich.map(async (j) => {
+      const job = normalizeSmartRecruitersJob(j, slug);
+      try {
+        const detailCtrl = new AbortController();
+        const dTimeout = setTimeout(() => detailCtrl.abort(), 4000);
+        const detail = await fetch(`${base}/${encodeURIComponent(j.id)}`, {
+          signal: detailCtrl.signal,
+          headers: { 'Accept': 'application/json', 'User-Agent': USER_AGENT }
+        });
+        clearTimeout(dTimeout);
+        if (detail.ok) {
+          const d = await detail.json();
+          const sections = Object.values(d.jobAd?.sections || {}).map(x => x.text || '').join('\n');
+          job.raw_text = stripHtml(sections) || job.raw_text;
+        }
+      } catch (e) {
+        // Fallback to basic normalized title & location
+      }
+      return job;
+    }));
+
+    jobs.push(...enriched);
+    if (jobs.length >= 15 || batch.length < 100) break;
   }
+
+  return jobs;
 }
 
 function normalizeSmartRecruitersJob(j, slug) {
@@ -299,38 +340,48 @@ function normalizeSmartRecruitersJob(j, slug) {
  * e.g., "nvidia.wd5.myworkdayjobs.com/nvidia/NVIDIAExternalCareerSite"
  */
 async function fetchWorkdayPostings(slug) {
-  const parts = slug.split('/');
-  if (parts.length < 3) {
-    throw new Error(`Invalid Workday slug format "${slug}". Expected "host/tenant/careerSite"`);
+  const [host, tenant, ...sites] = slug.split('/');
+  const careerSite = sites.join('/');
+  if (!host || !tenant || !careerSite) throw new Error('Workday requires host/tenant/careerSite');
+  const base = `https://${host}/wday/cxs/${encodeURIComponent(tenant)}/${careerSite}`;
+  const jobs = [];
+  const seen = new Set();
+
+  for (let page = 0; page < 3; page++) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+    let batch = [];
+    try {
+      const res = await fetch(`${base}/jobs`, {
+        method: 'POST',
+        signal: controller.signal,
+        headers: { 'Content-Type': 'application/json', 'User-Agent': USER_AGENT },
+        body: JSON.stringify({ appliedFacets: {}, limit: 20, offset: page * 20, searchText: '' })
+      });
+      clearTimeout(timeoutId);
+      if (!res.ok) break;
+      const data = await res.json();
+      batch = data.jobPostings || [];
+    } catch (e) {
+      clearTimeout(timeoutId);
+      break;
+    }
+
+    if (!batch.length) break;
+
+    const techBatch = batch.filter(j => isRelevantTechRole(j.title));
+    for (const j of techBatch) {
+      if (seen.has(j.externalPath)) continue;
+      seen.add(j.externalPath);
+      const normalized = normalizeWorkdayJob(j, host, tenant, careerSite);
+      jobs.push(normalized);
+      if (jobs.length >= 15) break;
+    }
+
+    if (jobs.length >= 15 || batch.length < 20) break;
   }
-  const host = parts[0];
-  const tenant = parts[1];
-  const careerSite = parts.slice(2).join('/');
-  const url = `https://${host}/wday/cxs/${tenant}/${careerSite}/jobs`;
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 15000);
-
-  try {
-    const res = await fetch(url, {
-      method: 'POST',
-      signal: controller.signal,
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'User-Agent': USER_AGENT
-      },
-      body: JSON.stringify({ appliedFacets: {}, limit: 20, offset: 0, searchText: '' })
-    });
-    clearTimeout(timeoutId);
-
-    if (!res.ok) throw new Error(`Workday CXS API returned HTTP ${res.status}`);
-    const data = await res.json();
-    return (data.jobPostings || []).map(j => normalizeWorkdayJob(j, host, tenant, careerSite));
-  } catch (err) {
-    clearTimeout(timeoutId);
-    throw err;
-  }
+  return jobs;
 }
 
 function normalizeWorkdayJob(j, host, tenant, careerSite) {
@@ -339,8 +390,9 @@ function normalizeWorkdayJob(j, host, tenant, careerSite) {
   const cleanBody = j.bulletFields?.join(' | ') || '';
 
   // Calculate posted date from "Posted Today", "Posted 2 Days Ago", etc.
-  let postedDate = new Date().toISOString().split('T')[0];
+  let postedDate = null;
   if (j.postedOn) {
+    if (/today/i.test(j.postedOn)) postedDate = new Date().toISOString().split('T')[0];
     const daysMatch = j.postedOn.match(/(\d+)\s+days?\s+ago/i);
     if (daysMatch) {
       const d = new Date();
@@ -375,7 +427,7 @@ function normalizeWorkdayJob(j, host, tenant, careerSite) {
 async function fetchPyjamaHRPostings(slug) {
   let page = 1;
   let allJobs = [];
-  const maxPages = 5;
+  const maxPages = 500;
 
   while (page <= maxPages) {
     const url = `https://api.pyjamahr.com/api/career/jobs/?company_slug=${encodeURIComponent(slug)}&page=${page}`;
@@ -389,7 +441,7 @@ async function fetchPyjamaHRPostings(slug) {
       });
       clearTimeout(timeoutId);
 
-      if (!res.ok) break;
+      if (!res.ok) throw new Error(`PyjamaHR HTTP ${res.status}`);
       const data = await res.json();
       if (!data.results || data.results.length === 0) break;
 
@@ -398,7 +450,7 @@ async function fetchPyjamaHRPostings(slug) {
       page++;
     } catch (err) {
       clearTimeout(timeoutId);
-      break;
+      throw err;
     }
   }
 
@@ -407,7 +459,7 @@ async function fetchPyjamaHRPostings(slug) {
 
 function normalizePyjamaHRJob(j, slug) {
   const jobId = j.id || j.slug;
-  const locationName = j.location || 'Bengaluru, India';
+  const locationName = j.location || '';
   const workplaceType = j.workplace_type || '';
   const isRemote = /remote/i.test(locationName) || /remote/i.test(workplaceType) ? 1 : 0;
   const expText = (j.min_experience != null && j.max_experience != null)

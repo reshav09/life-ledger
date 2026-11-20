@@ -1,64 +1,19 @@
 import { useEffect, useRef, useState, useCallback, lazy, Suspense } from 'react';
 import { Routes, Route, NavLink, useNavigate, useLocation } from 'react-router-dom';
-// Login and ModeSelect are eagerly loaded (critical path — shown before anything else)
 import Login from './pages/Login.jsx';
-import ModeSelect from './pages/ModeSelect.jsx';
 import { setUnauthorizedHandler } from './api.js';
-import { usePrivacy } from './PrivacyContext.jsx';
-import { useAppMode } from './AppContext.jsx';
-import QuickDumpModal from './components/QuickDumpModal.jsx';
+import { useTheme } from './ThemeContext.jsx';
+import ErrorBoundary from './components/ErrorBoundary.jsx';
 
-// ── Lazy-loaded pages (code-split per route) ──
-// These only download when the user navigates to them, shrinking the initial bundle.
-const Dashboard = lazy(() => import('./pages/Dashboard.jsx'));
-const Accounts = lazy(() => import('./pages/Accounts.jsx'));
-const Transactions = lazy(() => import('./pages/Transactions.jsx'));
-const Budgets = lazy(() => import('./pages/Budgets.jsx'));
-const ChartsPage = lazy(() => import('./pages/Charts.jsx'));
-const Planner = lazy(() => import('./pages/Planner.jsx'));
-const Savings = lazy(() => import('./pages/Savings.jsx'));
-const Loans = lazy(() => import('./pages/Loans.jsx'));
-const CategoryDetail = lazy(() => import('./pages/CategoryDetail.jsx'));
-const SettingsPage = lazy(() => import('./pages/Settings.jsx'));
-const RoutineToday = lazy(() => import('./pages/RoutineToday.jsx'));
-const RoutineTemplate = lazy(() => import('./pages/RoutineTemplate.jsx'));
-const TimeLog = lazy(() => import('./pages/TimeLog.jsx'));
-const Applications = lazy(() => import('./pages/Applications.jsx'));
-const DietDashboard = lazy(() => import('./pages/DietDashboard.jsx'));
-const FoodLog = lazy(() => import('./pages/FoodLog.jsx'));
-const HealthProfile = lazy(() => import('./pages/HealthProfile.jsx'));
-const DietSpending = lazy(() => import('./pages/DietSpending.jsx'));
-const AIAnalyzer = lazy(() => import('./pages/AIAnalyzer.jsx'));
-const DietSettings = lazy(() => import('./pages/DietSettings.jsx'));
-const RoutineSettings = lazy(() => import('./pages/RoutineSettings.jsx'));
-const CurrentDiet = lazy(() => import('./pages/CurrentDiet.jsx'));
+// ── Lazy-loaded Job Hunt pages ──
 const JobHuntDashboard = lazy(() => import('./pages/JobHuntDashboard.jsx'));
-const JobHuntOrgs = lazy(() => import('./pages/JobHuntOrgs.jsx'));
+const Applications = lazy(() => import('./pages/Applications.jsx'));
+const JobHuntApplicationWorkspace = lazy(() => import('./pages/JobHuntApplicationWorkspace.jsx'));
 const JobHuntOpportunities = lazy(() => import('./pages/JobHuntOpportunities.jsx'));
+const JobHuntOrgs = lazy(() => import('./pages/JobHuntOrgs.jsx'));
 const JobHuntProfile = lazy(() => import('./pages/JobHuntProfile.jsx'));
 const JobHuntPrep = lazy(() => import('./pages/JobHuntPrep.jsx'));
 const JobHuntSettings = lazy(() => import('./pages/JobHuntSettings.jsx'));
-const JobHuntApplicationWorkspace = lazy(() => import('./pages/JobHuntApplicationWorkspace.jsx'));
-
-
-const MONEY_NAV = [
-  { to: '/', label: 'Dashboard', num: '01', end: true },
-  { to: '/transactions', label: 'Transactions', num: '02' },
-  { to: '/accounts', label: 'Accounts', num: '03' },
-  { to: '/budgets', label: 'Budgets', num: '04' },
-  { to: '/charts', label: 'Charts', num: '05' },
-  { to: '/planner', label: 'Planner', num: '06' },
-  { to: '/savings', label: 'Savings', num: '07' },
-  { to: '/loans', label: 'Loans', num: '08' },
-  { to: '/settings', label: 'Settings', num: '09' }
-];
-
-const ROUTINE_NAV = [
-  { to: '/', label: 'Today', num: '01', end: true },
-  { to: '/routine', label: 'My Routine', num: '02' },
-  { to: '/timelog', label: 'Time Log', num: '03' },
-  { to: '/settings', label: 'Settings', num: '04' }
-];
 
 const JOBHUNT_NAV = [
   { to: '/', label: 'Radar', num: '01', end: true },
@@ -69,16 +24,6 @@ const JOBHUNT_NAV = [
   { to: '/profile', label: 'My Profile', num: '06' },
   { to: '/prep', label: 'Prep Hub', num: '07' },
   { to: '/settings', label: 'Settings', num: '08' }
-];
-
-const DIET_NAV = [
-  { to: '/', label: 'Dashboard', num: '01', end: true },
-  { to: '/diet-plan', label: 'Current Diet', num: '02' },
-  { to: '/food', label: 'Food Log', num: '03' },
-  { to: '/health', label: 'Health Profile', num: '04' },
-  { to: '/spending', label: 'Diet & Gym Spending', num: '05' },
-  { to: '/ai', label: 'AI Analyzer', num: '06' },
-  { to: '/settings', label: 'Settings', num: '07' }
 ];
 
 function formatCountdown(ms) {
@@ -94,64 +39,61 @@ export default function App() {
   const [authState, setAuthState] = useState('checking'); // checking | in | out
   const [expiresAt, setExpiresAt] = useState(null);
   const [now, setNow] = useState(Date.now());
-  const [navOpen, setNavOpen] = useState(false);
-  const [quickDumpOpen, setQuickDumpOpen] = useState(false);
   const logoutTimerRef = useRef(null);
-  const { hiddenMode, toggleHiddenMode, resetPrivacy } = usePrivacy();
-  const { mode, setMode, clearMode } = useAppMode();
+  const bezelRef = useRef(null);
+  const mainRef = useRef(null);
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
 
+  // Enforce zero scroll lock on window/body
   useEffect(() => {
-    setNavOpen(false);
+    const enforceZeroScroll = () => {
+      if (window.scrollY !== 0 || window.scrollX !== 0) window.scrollTo(0, 0);
+      if (document.documentElement.scrollTop !== 0) document.documentElement.scrollTop = 0;
+      if (document.body.scrollTop !== 0) document.body.scrollTop = 0;
+      if (bezelRef.current && bezelRef.current.scrollTop !== 0) bezelRef.current.scrollTop = 0;
+    };
+
+    window.addEventListener('scroll', enforceZeroScroll, { passive: true });
+    const frameEl = bezelRef.current;
+    if (frameEl) frameEl.addEventListener('scroll', enforceZeroScroll, { passive: true });
+
+    return () => {
+      window.removeEventListener('scroll', enforceZeroScroll);
+      if (frameEl) frameEl.removeEventListener('scroll', enforceZeroScroll);
+    };
+  }, [authState]);
+
+  // Reset viewport scroll to top on route transition
+  useEffect(() => {
+    if (mainRef.current) mainRef.current.scrollTop = 0;
   }, [location.pathname]);
+
+  const handleHeaderWheel = useCallback((e) => {
+    if (mainRef.current) mainRef.current.scrollTop += e.deltaY;
+  }, []);
 
   const goToLogin = useCallback(() => {
     setAuthState('out');
     setExpiresAt(null);
     if (logoutTimerRef.current) clearTimeout(logoutTimerRef.current);
-    resetPrivacy();
-  }, [resetPrivacy]);
+  }, []);
 
   useEffect(() => {
     setUnauthorizedHandler(goToLogin);
-    checkStatus();
   }, [goToLogin]);
 
   useEffect(() => {
-    if (authState !== 'in') return;
-    const tick = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(tick);
-  }, [authState]);
+    checkStatus();
+  }, []);
 
-  // Global Keyboard shortcuts: J / Alt+D -> Quick Dump modal; N -> Add Entry, / -> search (money mode).
+  // Live countdown ticker
   useEffect(() => {
-    if (authState !== 'in') return;
-    function handleKeyDown(e) {
-      const tag = document.activeElement?.tagName;
-      const isTyping = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || document.activeElement?.isContentEditable;
-      
-      // Quick dump shortcut (Alt+D or Ctrl+J or pressing J when not typing) - disabled in jobhunt mode
-      if (mode !== 'jobhunt' && ((e.altKey && (e.key === 'd' || e.key === 'D')) || (e.ctrlKey && (e.key === 'j' || e.key === 'J')) || (!isTyping && (e.key === 'j' || e.key === 'J')))) {
-        e.preventDefault();
-        setQuickDumpOpen((prev) => !prev);
-        return;
-      }
-
-      if (isTyping) return;
-      if (mode === 'money') {
-        if (e.key === 'n' || e.key === 'N') {
-          e.preventDefault();
-          navigate('/transactions');
-        } else if (e.key === '/') {
-          e.preventDefault();
-          navigate('/transactions?focus=search');
-        }
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [authState, navigate, mode]);
+    if (authState !== 'in' || !expiresAt) return;
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, [authState, expiresAt]);
 
   async function checkStatus() {
     try {
@@ -177,23 +119,16 @@ export default function App() {
 
   async function logout() {
     await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
-    clearMode();
-    navigate('/');
     goToLogin();
-  }
-
-  function openModeSwitcher() {
-    clearMode();
     navigate('/');
   }
 
   if (authState === 'checking') {
-    return <div className="empty-state" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Loading…</div>;
-  }
-
-  // Show mode selector if no mode chosen yet
-  if (!mode) {
-    return <ModeSelect />;
+    return (
+      <div className="empty-state" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        Connecting to Job Radar OS…
+      </div>
+    );
   }
 
   if (authState === 'out') {
@@ -201,185 +136,105 @@ export default function App() {
   }
 
   const msLeft = expiresAt ? expiresAt - now : 0;
-  const isMoneyMode = mode === 'money';
-  const isDietMode = mode === 'diet';
-  const isJobHuntMode = mode === 'jobhunt';
-  const NAV = isJobHuntMode ? JOBHUNT_NAV : mode === 'routine' ? ROUTINE_NAV : isDietMode ? DIET_NAV : MONEY_NAV;
-
-  const brandSub = isMoneyMode ? 'Money Tracker' : isDietMode ? 'Diet & Health' : isJobHuntMode ? 'Job Hunt Radar' : 'Routine & Schedule';
-  const modeIcon = isMoneyMode ? '💰' : isDietMode ? '🥗' : isJobHuntMode ? '🎯' : '⏱️';
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <div className="sidebar-topbar">
-          <div className="sidebar-brand">
-            Ledger
-            <span>{brandSub}</span>
+    <div
+      className="sanctuary-outer-canvas sanctuary-app-canvas"
+      style={{
+        '--mode-accent': '#7c3aed',
+        '--mode-glow': 'rgba(124, 58, 237, 0.35)'
+      }}
+    >
+      <div className="sanctuary-blurred-backdrop" />
+
+      <div ref={bezelRef} className="sanctuary-bezel-frame sanctuary-app-frame">
+        <div className="sanctuary-bg-layer" />
+        <div className="sanctuary-cabin-natural-warmth" />
+        <div className="sanctuary-mist-layer" />
+        <div className="sanctuary-vignette" />
+        <div className="sanctuary-app-veil" />
+
+        {/* Topbar: Brand, System Meta, Theme, Logout */}
+        <header onWheel={handleHeaderWheel} className="sanctuary-topbar sanctuary-app-topbar anim-fade-down">
+          <div
+            className="sanctuary-brand"
+            onClick={() => navigate('/')}
+            title="Job Radar OS Dashboard"
+            style={{ cursor: 'pointer' }}
+          >
+            <span className="sanctuary-logo">JOB RADAR</span>
+            <span className="sanctuary-badge">CAREER INTELLIGENCE OS</span>
           </div>
 
-          <div className="sidebar-mobile-actions">
-            {isMoneyMode && (
-              <button
-                className="quick-btn"
-                onClick={toggleHiddenMode}
-                title={hiddenMode ? 'Amounts hidden — tap to show everything' : 'Amounts visible — tap to hide again'}
-              >
-                {hiddenMode ? '🙈' : '👁️'}
-              </button>
-            )}
-            <button className="quick-btn" onClick={logout} title={`Log out (session ends in ${formatCountdown(msLeft)})`}>
-              ⎋
-            </button>
-            <button className="quick-btn nav-toggle-btn" onClick={() => setNavOpen(!navOpen)} aria-label="Toggle menu">
-              {navOpen ? '✕' : '☰'}
-            </button>
-          </div>
-        </div>
+          <div className="sanctuary-app-actions">
+            {/* Session countdown */}
+            <div className="sanctuary-action-pill session-pill" title={`Session expires in ${formatCountdown(msLeft)}`}>
+              <span className="session-icon">⏳</span>
+              <span className="session-text">{formatCountdown(msLeft)}</span>
+            </div>
 
-        {/* Global Module Switcher Tabs: Quick 1-click access to all 4 ledgers */}
-        <div className="sidebar-app-tabs">
-          <button
-            type="button"
-            className={`sidebar-app-tab ${mode === 'money' ? 'active' : ''}`}
-            onClick={() => { setMode('money'); navigate('/'); }}
-            title="Money Ledger"
-          >
-            💰 Money
-          </button>
-          <button
-            type="button"
-            className={`sidebar-app-tab ${mode === 'routine' ? 'active' : ''}`}
-            onClick={() => { setMode('routine'); navigate('/'); }}
-            title="Routine & Schedule"
-          >
-            ⏱️ Routine
-          </button>
-          <button
-            type="button"
-            className={`sidebar-app-tab ${mode === 'diet' ? 'active' : ''}`}
-            onClick={() => { setMode('diet'); navigate('/'); }}
-            title="Diet & Health"
-          >
-            🥗 Diet
-          </button>
-          <button
-            type="button"
-            className={`sidebar-app-tab ${mode === 'jobhunt' ? 'active' : ''}`}
-            onClick={() => { setMode('jobhunt'); navigate('/'); }}
-            title="Job Hunt Radar"
-          >
-            🎯 Job Hunt
-          </button>
-        </div>
-
-        <nav className={`sidebar-nav ${navOpen ? 'nav-open' : ''}`}>
-          {NAV.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.end}
-              className={({ isActive }) => `sidebar-link${isActive ? ' active' : ''}`}
-            >
-              <span className="sidebar-num">{item.num}</span>
-              {item.label}
-            </NavLink>
-          ))}
-        </nav>
-        <div className="sidebar-foot">
-          {/* Privacy toggle (money mode only) */}
-          {isMoneyMode && (
+            {/* Logout button */}
             <button
-              className={`sidebar-privacy-toggle ${hiddenMode ? 'hidden' : 'visible'}`}
-              onClick={toggleHiddenMode}
-              title={hiddenMode ? 'Amounts are blurred — tap any to peek, or click here to show everything' : 'Amounts are fully visible — click here to blur them again'}
+              type="button"
+              className="sanctuary-action-pill logout-pill"
+              onClick={logout}
+              title="Log Out of Job Radar"
             >
-              <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                <span className="dot" />
-                {hiddenMode ? 'Amounts hidden' : 'Amounts visible'}
-              </span>
-              <span>{hiddenMode ? '🙈' : '👁️'}</span>
+              <span className="action-pill-glyph">⎋</span>
+              <span className="action-pill-label">Exit</span>
             </button>
-          )}
-          <div className="session-timer" style={{ marginTop: 8 }}>Session ends in {formatCountdown(msLeft)}</div>
-          <button className="btn btn-sm" style={{ marginTop: 10, width: '100%', justifyContent: 'center' }} onClick={logout}>
-            Log out
-          </button>
-        </div>
-      </aside>
-      <main className="main">
-        <Suspense fallback={<div className="empty-state" style={{ minHeight: '40vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Loading…</div>}>
-        {isMoneyMode ? (
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/transactions" element={<Transactions />} />
-            <Route path="/accounts" element={<Accounts />} />
-            <Route path="/budgets" element={<Budgets />} />
-            <Route path="/charts" element={<ChartsPage />} />
-            <Route path="/planner" element={<Planner />} />
-            <Route path="/savings" element={<Savings />} />
-            <Route path="/loans" element={<Loans />} />
-            <Route path="/category/:id" element={<CategoryDetail />} />
-            <Route path="/settings" element={<SettingsPage />} />
-          </Routes>
-        ) : isDietMode ? (
-          <Routes>
-            <Route path="/" element={<DietDashboard />} />
-            <Route path="/diet-plan" element={<CurrentDiet />} />
-            <Route path="/food" element={<FoodLog />} />
-            <Route path="/health" element={<HealthProfile />} />
-            <Route path="/spending" element={<DietSpending />} />
-            <Route path="/ai" element={<AIAnalyzer />} />
-            <Route path="/settings" element={<DietSettings />} />
-          </Routes>
-        ) : isJobHuntMode ? (
-          <Routes>
-            <Route path="/" element={<JobHuntDashboard />} />
-            <Route path="/applications" element={<Applications />} />
-            <Route path="/workspace" element={<JobHuntApplicationWorkspace />} />
-            <Route path="/opportunities" element={<JobHuntOpportunities />} />
-            <Route path="/orgs" element={<JobHuntOrgs />} />
-            <Route path="/profile" element={<JobHuntProfile />} />
-            <Route path="/prep" element={<JobHuntPrep />} />
-            <Route path="/settings" element={<JobHuntSettings />} />
-          </Routes>
-        ) : (
-          <Routes>
-            <Route path="/" element={<RoutineToday />} />
-            <Route path="/routine" element={<RoutineTemplate />} />
-            <Route path="/timelog" element={<TimeLog />} />
-            <Route path="/settings" element={<RoutineSettings />} />
-          </Routes>
-        )}
-        </Suspense>
-      </main>
 
-      {/* Unified Floating Quick Log Action Button (Money, Routine, Diet only — not Job Hunt) */}
-      {mode !== 'jobhunt' && (
-        <>
-          <button
-            type="button"
-            className="app-quick-log-fab"
-            onClick={() => setQuickDumpOpen(true)}
-            title="⚡ Quick Log (Voice & Text) — Press 'J'"
-            aria-label="Open Daily Quick Log"
-          >
-            <span className="app-quick-log-fab-icon">⚡</span>
-            <span className="app-quick-log-fab-text">Quick Log</span>
-            <span className="app-quick-log-fab-shortcut">J</span>
-          </button>
+            {/* Dark / Light Theme Toggle */}
+            <button
+              type="button"
+              className={`sanctuary-action-pill theme-toggle-pill ${theme === 'dark' ? 'is-dark' : 'is-light'}`}
+              onClick={toggleTheme}
+              title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+              aria-label="Toggle light or dark theme"
+            >
+              <span className="theme-toggle-glyph">{theme === 'dark' ? '🌙' : '☀️'}</span>
+              <span className="action-pill-label">{theme === 'dark' ? 'Dark' : 'Light'}</span>
+            </button>
+          </div>
+        </header>
 
-          <QuickDumpModal
-            isOpen={quickDumpOpen}
-            onClose={() => setQuickDumpOpen(false)}
-            onLogged={() => {
-              // Dispatch a custom event so active pages can refresh their data
-              // without losing state (e.g. selected date)
-              window.dispatchEvent(new CustomEvent('quick-log-saved'));
-            }}
-          />
-        </>
-      )}
+        {/* Sub-Navigation Pill Bar */}
+        <nav onWheel={handleHeaderWheel} className="sanctuary-subnav-bar anim-fade-down" style={{ animationDelay: '0.06s' }}>
+          <div className="subnav-pill-track">
+            {JOBHUNT_NAV.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.end}
+                className={({ isActive }) => `subnav-pill ${isActive ? 'active' : ''}`}
+              >
+                <span className="subnav-pill-num">{item.num}</span>
+                <span className="subnav-pill-label">{item.label}</span>
+              </NavLink>
+            ))}
+          </div>
+        </nav>
+
+        {/* Main Viewport */}
+        <main ref={mainRef} className="sanctuary-main">
+          <ErrorBoundary>
+            <Suspense fallback={<div className="empty-state" style={{ minHeight: '40vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Loading…</div>}>
+              <div key={location.pathname} className="money-page-transition-wrapper">
+                <Routes>
+                  <Route path="/" element={<JobHuntDashboard />} />
+                  <Route path="/applications" element={<Applications />} />
+                  <Route path="/workspace" element={<JobHuntApplicationWorkspace />} />
+                  <Route path="/opportunities" element={<JobHuntOpportunities />} />
+                  <Route path="/orgs" element={<JobHuntOrgs />} />
+                  <Route path="/profile" element={<JobHuntProfile />} />
+                  <Route path="/prep" element={<JobHuntPrep />} />
+                  <Route path="/settings" element={<JobHuntSettings />} />
+                </Routes>
+              </div>
+            </Suspense>
+          </ErrorBoundary>
+        </main>
+      </div>
     </div>
   );
 }

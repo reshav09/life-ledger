@@ -4,13 +4,12 @@ const cookieParser = require('cookie-parser');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
-const fs = require('fs');
-const https = require('https');
 const requireAuth = require('./middleware/requireAuth');
 const requestLogger = require('./middleware/requestLogger');
 const errorHandler = require('./middleware/errorHandler');
 const { router: authRouter } = require('./routes/auth');
 const { runMigrationsWithRetry } = require('./db/migrate');
+const { seedStandalone } = require('./scripts/seedStandalone');
 const { scheduleAutoBackup } = require('./services/backup');
 const pool = require('./db/db');
 
@@ -21,40 +20,33 @@ const PORT = process.env.PORT || 4000;
 app.use(requestLogger);
 
 // ── Security headers ──
-// Helmet sets a sensible default set of HTTP security headers (CSP, HSTS,
-// X-Frame-Options, etc.). The contentSecurityPolicy is relaxed for the SPA
-// since it needs inline styles/scripts from Vite's build output.
 app.use(helmet({
   contentSecurityPolicy: false, // SPA needs inline styles/scripts
-  crossOriginEmbedderPolicy: false // Allow loading external AI model resources
+  crossOriginEmbedderPolicy: false
 }));
 
 // ── Rate limiting ──
-// Login endpoint: 5 attempts per 15 minutes to prevent brute-force
 app.use('/api/auth/login', rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 5,
+  max: 10,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many login attempts. Try again in 15 minutes.' }
 }));
 
-// General API: 200 requests per minute per IP
 app.use('/api', rateLimit({
   windowMs: 60 * 1000,
-  max: 200,
+  max: 300,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests. Please slow down.' }
 }));
 
 app.use(cors({ origin: true, credentials: true }));
-// Raised from the default 100kb so a full-data backup restore can be uploaded in one go.
 app.use(express.json({ limit: '25mb' }));
 app.use(cookieParser());
 
 // ── Enhanced health check ──
-// Returns DB connectivity status + uptime for Docker HEALTHCHECK and K8s probes.
 app.get('/api/health', async (req, res) => {
   try {
     await pool.query('SELECT 1');
@@ -74,52 +66,45 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
+// Authentication endpoints
 app.use('/api/auth', authRouter);
 
-// Everything below this line requires a valid, unexpired login session
+// Everything below this requires an active session
 app.use('/api', requireAuth);
 
-app.use('/api/accounts', require('./routes/accounts'));
-app.use('/api/categories', require('./routes/categories'));
-app.use('/api/transactions', require('./routes/transactions'));
-app.use('/api/salary', require('./routes/salary'));
-app.use('/api/budgets', require('./routes/budgets'));
-app.use('/api/wishlist', require('./routes/wishlist'));
-app.use('/api/settings', require('./routes/settings'));
-app.use('/api/dashboard', require('./routes/dashboard'));
-app.use('/api/savings', require('./routes/savings'));
-app.use('/api/loans', require('./routes/loans'));
-app.use('/api/templates', require('./routes/templates'));
-app.use('/api/reminders', require('./routes/reminders'));
-app.use('/api/reports', require('./routes/reports'));
-app.use('/api/backup', require('./routes/backup'));
-app.use('/api/routine', require('./routes/routine'));
+// ── Job Hunt Ledger Core Endpoints ──
 app.use('/api/applications', require('./routes/applications'));
+app.use('/api/settings', require('./routes/settings'));
+app.use('/api/ai', require('./routes/ai'));
 
-// Job Hunt Ledger — organization discovery, opportunity scoring, career profile, AI extraction & crawler
+// Organization discovery, opportunity scoring, career profile, AI extraction & crawler
 app.use('/api/jobhunt/profile', require('./routes/jobhuntProfile'));
 app.use('/api/jobhunt/orgs', require('./routes/jobhuntOrgs'));
 app.use('/api/jobhunt/opportunities', require('./routes/jobhuntOpportunities'));
 app.use('/api/jobhunt/prep', require('./routes/jobhuntPrep'));
 app.use('/api/jobhunt/documents', require('./routes/jobhuntDocuments'));
 app.use('/api/jobhunt', require('./routes/jobhuntIngest'));
+app.use('/api/backup', require('./routes/backup'));
 
-// Diet & Health Ledger — reads from Money/Routine where relevant, never writes to them
-app.use('/api/health-profile', require('./routes/health'));
-app.use('/api/diet', require('./routes/diet'));
-app.use('/api/gym-spending', require('./routes/gymSpending'));
-app.use('/api/diet-plan', require('./routes/dietPlan'));
-
-// AI Analyzer — reads across all ledgers via a controlled context, is not itself a source of truth
-app.use('/api/ai', require('./routes/ai'));
-
-// Centralized API error handler (catches next(err) from any route)
+// Centralized API error handler
 app.use('/api', errorHandler);
 
-// Serve the built frontend
+// ── Serve the built frontend ──
 const frontendDist = path.join(__dirname, 'public');
-app.use(express.static(frontendDist));
+app.use(express.static(frontendDist, {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('index.html')) {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    }
+  }
+}));
+
 app.get('*', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
   res.sendFile(path.join(frontendDist, 'index.html'));
 });
 
@@ -127,32 +112,68 @@ app.get('*', (req, res) => {
 app.use(errorHandler);
 
 let server;
+let stopJobHuntWorker;
 
 (async () => {
-  await runMigrationsWithRetry();
-  scheduleAutoBackup();
+  try {
+    // 1. Run migrations
+    await runMigrationsWithRetry();
 
-  // Start Job Hunt Automated Crawler
-  const { startBackgroundCrawler } = require('./services/jobhuntCrawler');
-  startBackgroundCrawler();
+    // 2. Run seed check (populates 350+ orgs & opportunities if database is fresh)
+    await seedStandalone();
 
-  // Run Job Hunt Opportunities Lifecycle Maintenance (Purge expired deadlines, archive stale private >15d / govt >20d)
-  const { runOpportunitiesLifecycle } = require('./services/jobhuntLifecycle');
-  runOpportunitiesLifecycle().catch((err) => console.error('[JobHunt Lifecycle Startup Error]:', err.message));
-  setInterval(() => {
-    runOpportunitiesLifecycle().catch((err) => console.error('[JobHunt Lifecycle Interval Error]:', err.message));
-  }, 60 * 60 * 1000);
+    // 3. Weekly backup schedule
+    scheduleAutoBackup();
 
-  // Start HTTP Server
-  server = app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Life Ledger running on port ${PORT} (http://localhost:5000)`);
-  });
+    // 4. Background document generator worker
+    if (process.env.JOBHUNT_GENERATION_ENABLED !== '0') {
+      stopJobHuntWorker = require('./services/jobhuntGenerationJobs').startGenerationWorker();
+    }
+
+    // 5. Automated Background Web Crawler
+    const { startBackgroundCrawler } = require('./services/jobhuntCrawler');
+    startBackgroundCrawler();
+
+    // 6. Automated Opportunities Lifecycle Maintenance (purge expired deadlines)
+    const { runOpportunitiesLifecycle } = require('./services/jobhuntLifecycle');
+    runOpportunitiesLifecycle().catch((err) => console.error('[Lifecycle Startup Error]:', err.message));
+    setInterval(() => {
+      runOpportunitiesLifecycle().catch((err) => console.error('[Lifecycle Interval Error]:', err.message));
+    }, 60 * 60 * 1000);
+
+    // ── 7. Scheduled 12-Hour Automated Job Data Refresh ──
+    const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
+    async function run12HourSync() {
+      console.log('⏰ [12-Hour Scheduler] Starting scheduled automated refresh & lifecycle maintenance...');
+      try {
+        const refreshAllData = require('./scripts/refreshAllData');
+        await refreshAllData();
+        await runOpportunitiesLifecycle();
+        console.log('✅ [12-Hour Scheduler] Automated refresh completed successfully.');
+      } catch (err) {
+        console.error('❌ [12-Hour Scheduler Error]:', err.message);
+      }
+    }
+
+    // Trigger initial refresh 45 seconds after boot (allowing DB to stabilize), then every 12 hours
+    setTimeout(() => {
+      run12HourSync().catch(console.error);
+    }, 45 * 1000);
+    setInterval(run12HourSync, TWELVE_HOURS_MS);
+
+    // Start HTTP Server
+    server = app.listen(PORT, '0.0.0.0', () => {
+      console.log(`🚀 Job Hunt Standalone OS running on port ${PORT}`);
+    });
+  } catch (err) {
+    console.error('Fatal initialization error:', err);
+    process.exit(1);
+  }
 })();
 
 // ── Graceful shutdown ──
-// Handles SIGTERM (Docker stop) and SIGINT (Ctrl+C) so in-flight requests
-// finish cleanly and DB connections are released before the process exits.
 async function shutdown(signal) {
+  stopJobHuntWorker?.();
   console.log(`\n${signal} received — shutting down gracefully…`);
   if (server) {
     server.close(async () => {
@@ -163,7 +184,6 @@ async function shutdown(signal) {
       process.exit(0);
     });
   }
-  // Force exit after 10 seconds if graceful shutdown stalls
   setTimeout(() => {
     console.error('Forced shutdown after timeout.');
     process.exit(1);
