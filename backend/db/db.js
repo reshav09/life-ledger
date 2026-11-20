@@ -1,17 +1,31 @@
 const mysql = require('mysql2/promise');
 
-const pool = process.env.DATABASE_URL || process.env.MYSQL_URL
-  ? mysql.createPool(process.env.DATABASE_URL || process.env.MYSQL_URL)
-  : mysql.createPool({
-      host: process.env.DB_HOST || process.env.MYSQLHOST || 'localhost',
-      port: Number(process.env.DB_PORT || process.env.MYSQLPORT) || 3306,
-      user: process.env.DB_USER || process.env.MYSQLUSER || 'root',
-      password: process.env.DB_PASSWORD || process.env.MYSQLPASSWORD || '',
-      database: process.env.DB_NAME || process.env.MYSQLDATABASE || 'jobhunt_db',
+function createDbPool() {
+  const dbUrl = process.env.DATABASE_URL || process.env.MYSQL_URL;
+  if (dbUrl) {
+    const isCloud = dbUrl.includes('tidbcloud.com') || dbUrl.includes('aivencloud.com') || process.env.DB_SSL === 'true';
+    return mysql.createPool({
+      uri: dbUrl,
+      ssl: isCloud ? { minVersion: 'TLSv1.2', rejectUnauthorized: false } : undefined,
       waitForConnections: true,
       connectionLimit: 10,
       queueLimit: 0,
       decimalNumbers: true
     });
+  }
 
+  return mysql.createPool({
+    host: process.env.DB_HOST || process.env.MYSQLHOST || 'localhost',
+    port: Number(process.env.DB_PORT || process.env.MYSQLPORT) || 3306,
+    user: process.env.DB_USER || process.env.MYSQLUSER || 'root',
+    password: process.env.DB_PASSWORD || process.env.MYSQLPASSWORD || '',
+    database: process.env.DB_NAME || process.env.MYSQLDATABASE || 'jobhunt_db',
+    waitForConnections: true,
+    connectionLimit: 10,
+    queueLimit: 0,
+    decimalNumbers: true
+  });
+}
+
+const pool = createDbPool();
 module.exports = pool;

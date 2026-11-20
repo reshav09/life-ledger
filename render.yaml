@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: job-radar-os
+    env: node
+    plan: free
+    branch: standalone-jobhunt
+    buildCommand: npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: NODE_ENV
+        value: production
+      - key: SESSION_HOURS
+        value: 24
