@@ -245,4 +245,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { seedTrueUpQuestions, TRUE_UP_QUESTIONS };
+module.exports = { seedTrueUpQuestions, TRUEUP_QUESTIONS };
