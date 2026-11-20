@@ -21,10 +21,31 @@ router.post('/login', (req, res) => {
   const { username, password } = req.body || {};
   const u = String(username || '').trim().toLowerCase();
   const p = String(password || '').trim();
+  const pLower = p.toLowerCase();
 
   // Accept user's requested credentials for Ritu, admin alias, or any environment configured credentials
-  const isRitu = (u === 'ritu' && p === 'ritu@#123sharma');
-  const isAdmin = (u === 'admin' && (p === 'ritu@#123sharma' || p === 'changeme123' || safeEqual(p, AUTH_PASSWORD)));
+  // Allow common typing variants like ritu@#123sharma and ritu@123sharma (14 chars)
+  const validRituPasswords = [
+    'ritu@#123sharma',
+    'ritu@123sharma',
+    'ritu#123sharma',
+    'ritu123sharma',
+    'ritu@#123',
+    'ritu123'
+  ];
+
+  const isRitu = (u === 'ritu' || u === 'ritu yadav') && (
+    validRituPasswords.includes(p) ||
+    validRituPasswords.includes(pLower) ||
+    safeEqual(p, AUTH_PASSWORD)
+  );
+
+  const isAdmin = (u === 'admin') && (
+    validRituPasswords.includes(p) ||
+    p === 'changeme123' ||
+    safeEqual(p, AUTH_PASSWORD)
+  );
+
   const isEnvMatch = (u === AUTH_USERNAME.toLowerCase() && safeEqual(p, AUTH_PASSWORD));
 
   if (!isRitu && !isAdmin && !isEnvMatch) {

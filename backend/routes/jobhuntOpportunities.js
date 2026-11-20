@@ -75,7 +75,7 @@ async function scoreAndPersist(oppId, preloadedThresholds = null) {
 
 // ── Helper: Retrieve filtered top opportunities and total match count for radar ──
 async function getRadarOpportunities({ filter = 'all', category_group = '', sector = '', limit = 50 } = {}) {
-  const whereClauses = ['op.is_archived = 0'];
+  const whereClauses = ['op.is_archived = 0', '(op.is_verified_active = 1 AND (op.is_active_link != 0 OR op.is_active_link IS NULL))'];
   const params = [];
 
   if (filter === 'apply_now') {
@@ -152,29 +152,30 @@ async function getRadarOpportunities({ filter = 'all', category_group = '', sect
 // ── Dashboard aggregation ──
 router.get('/dashboard', async (req, res) => {
   try {
-    const [total] = await pool.query('SELECT COUNT(*) AS cnt FROM jobhunt_opportunities WHERE is_archived = 0');
-    const [applyNow] = await pool.query("SELECT COUNT(*) AS cnt FROM jobhunt_opportunities WHERE recommendation = 'apply_now' AND is_archived = 0");
-    const [worthApplying] = await pool.query("SELECT COUNT(*) AS cnt FROM jobhunt_opportunities WHERE recommendation = 'worth_applying' AND is_archived = 0");
-    const [investigate] = await pool.query("SELECT COUNT(*) AS cnt FROM jobhunt_opportunities WHERE recommendation = 'investigate' AND is_archived = 0");
-    const [appliedCnt] = await pool.query("SELECT COUNT(*) AS cnt FROM jobhunt_opportunities WHERE (is_applied = 1 OR id IN (SELECT DISTINCT opportunity_id FROM applications WHERE opportunity_id IS NOT NULL AND status IN ('applied', 'interview', 'offer', 'rejected', 'cleared'))) AND is_archived = 0");
+    const verifiedCondition = 'op.is_archived = 0 AND op.is_verified_active = 1 AND (op.is_active_link != 0 OR op.is_active_link IS NULL)';
+    const [total] = await pool.query(`SELECT COUNT(*) AS cnt FROM jobhunt_opportunities op WHERE ${verifiedCondition}`);
+    const [applyNow] = await pool.query(`SELECT COUNT(*) AS cnt FROM jobhunt_opportunities op WHERE op.recommendation = 'apply_now' AND ${verifiedCondition}`);
+    const [worthApplying] = await pool.query(`SELECT COUNT(*) AS cnt FROM jobhunt_opportunities op WHERE op.recommendation = 'worth_applying' AND ${verifiedCondition}`);
+    const [investigate] = await pool.query(`SELECT COUNT(*) AS cnt FROM jobhunt_opportunities op WHERE op.recommendation = 'investigate' AND ${verifiedCondition}`);
+    const [appliedCnt] = await pool.query(`SELECT COUNT(*) AS cnt FROM jobhunt_opportunities op WHERE (op.is_applied = 1 OR op.id IN (SELECT DISTINCT opportunity_id FROM applications WHERE opportunity_id IS NOT NULL AND status IN ('applied', 'interview', 'offer', 'rejected', 'cleared'))) AND ${verifiedCondition}`);
 
     const now = new Date().toISOString().slice(0, 10);
-    const [d7] = await pool.query('SELECT COUNT(*) AS cnt FROM jobhunt_opportunities WHERE application_deadline BETWEEN ? AND DATE_ADD(?, INTERVAL 7 DAY) AND is_archived = 0', [now, now]);
-    const [d14] = await pool.query('SELECT COUNT(*) AS cnt FROM jobhunt_opportunities WHERE application_deadline BETWEEN ? AND DATE_ADD(?, INTERVAL 14 DAY) AND is_archived = 0', [now, now]);
-    const [d30] = await pool.query('SELECT COUNT(*) AS cnt FROM jobhunt_opportunities WHERE application_deadline BETWEEN ? AND DATE_ADD(?, INTERVAL 30 DAY) AND is_archived = 0', [now, now]);
+    const [d7] = await pool.query(`SELECT COUNT(*) AS cnt FROM jobhunt_opportunities op WHERE op.application_deadline BETWEEN ? AND DATE_ADD(?, INTERVAL 7 DAY) AND ${verifiedCondition}`, [now, now]);
+    const [d14] = await pool.query(`SELECT COUNT(*) AS cnt FROM jobhunt_opportunities op WHERE op.application_deadline BETWEEN ? AND DATE_ADD(?, INTERVAL 14 DAY) AND ${verifiedCondition}`, [now, now]);
+    const [d30] = await pool.query(`SELECT COUNT(*) AS cnt FROM jobhunt_opportunities op WHERE op.application_deadline BETWEEN ? AND DATE_ADD(?, INTERVAL 30 DAY) AND ${verifiedCondition}`, [now, now]);
 
     const [sectorBreakdown] = await pool.query(
       `SELECT o.sector, COUNT(*) AS cnt
        FROM jobhunt_opportunities op
        LEFT JOIN jobhunt_organizations o ON op.org_id = o.id
-       WHERE op.is_archived = 0
+       WHERE ${verifiedCondition}
        GROUP BY o.sector ORDER BY cnt DESC`
     );
 
     const [catRows] = await pool.query(
       `SELECT op.category_group, COUNT(*) AS cnt
        FROM jobhunt_opportunities op
-       WHERE op.is_archived = 0 AND (op.recommendation != 'ignore' OR op.recommendation IS NULL) AND (op.eligibility_pct IS NULL OR op.eligibility_pct > 0)
+       WHERE ${verifiedCondition} AND (op.recommendation != 'ignore' OR op.recommendation IS NULL) AND (op.eligibility_pct IS NULL OR op.eligibility_pct > 0)
        GROUP BY op.category_group`
     );
     const [countryRows] = await pool.query(
@@ -316,6 +317,8 @@ router.get('/', async (req, res) => {
       // By default in Active view, exclude disqualified/ignored/0% eligibility items
       conditions.push("(op.recommendation IS NULL OR op.recommendation != 'ignore')");
       conditions.push('(op.eligibility_pct IS NULL OR op.eligibility_pct > 0)');
+      // Strictly enforce verified existence: exclude dead links, ghost jobs, and non-existent jobs
+      conditions.push('(op.is_verified_active = 1 AND (op.is_active_link != 0 OR op.is_active_link IS NULL))');
     }
 
     if (job_type) { conditions.push('op.job_type = ?'); params.push(job_type); }
