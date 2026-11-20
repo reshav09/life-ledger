@@ -16,6 +16,9 @@ const pool = require('./db/db');
 const app = express();
 const PORT = process.env.PORT || 4000;
 
+// Trust reverse proxy (Render, Cloudflare, etc.) for client IP detection in rate limiting
+app.set('trust proxy', 1);
+
 // ── Structured request logging ──
 app.use(requestLogger);
 

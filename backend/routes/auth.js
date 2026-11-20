@@ -5,8 +5,8 @@ const router = express.Router();
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
 const SESSION_HOURS = Number(process.env.SESSION_HOURS || 4);
-const AUTH_USERNAME = process.env.AUTH_USERNAME || 'admin';
-const AUTH_PASSWORD = process.env.AUTH_PASSWORD || 'changeme';
+const AUTH_USERNAME = process.env.AUTH_USERNAME || 'ritu';
+const AUTH_PASSWORD = process.env.AUTH_PASSWORD || 'ritu@#123sharma';
 const COOKIE_NAME = 'ledger_session';
 
 // constant-time string compare so login timing can't leak the password
