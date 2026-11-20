@@ -283,33 +283,33 @@ export default function JobHuntPrep() {
 
     if (isPSU) {
       return [
-        { id: 'stages', label: '🏛️ CBT Scheme & Board Stages', badge: `${activePlan.stages?.length || 0} Stages` },
-        { id: 'psu_cbt', label: '⚡ PSU / Govt CS PYQs & Numericals', badge: 'GATE / ISRO / BARC' },
-        { id: 'neetcode', label: '💻 Core CS Data Structures', badge: 'NeetCode Patterns' },
-        { id: 'mock_interview', label: '🎙️ Grounded Mock Sessions', badge: 'Board & Tech AI' },
-        { id: 'notes', label: '📝 Candidate Exam Journal', badge: 'Revision Notes' }
+        { id: 'stages', label: '🏛️ CBT Blueprint & Stages', badge: `${activePlan.stages?.length || 0}` },
+        { id: 'psu_cbt', label: '⚡ PSU / Govt PYQs', badge: 'MCQs' },
+        { id: 'neetcode', label: '💻 Core CS Patterns', badge: 'NeetCode' },
+        { id: 'mock_interview', label: '🎙️ Mock Sessions', badge: 'AI' },
+        { id: 'notes', label: '📝 Prep Notes', badge: 'Journal' }
       ];
     }
 
     if (isQuant) {
       return [
-        { id: 'stages', label: '⚡ Selection Stages & Low-Latency Scheme', badge: `${activePlan.stages?.length || 0} Stages` },
-        { id: 'company_leetcode', label: `💻 ${activePlan.org_name} Coding Bank`, badge: 'Real Problems' },
-        { id: 'quant_systems', label: '⚡ Low-Latency C++ & Concurrency Bank', badge: 'Lock-Free & MESI' },
-        { id: 'neetcode', label: '🧠 NeetCode 150 Core Patterns', badge: '18 Patterns' },
-        { id: 'mock_interview', label: '🎙️ Grounded Mock Sessions', badge: 'Quant & Systems' },
-        { id: 'notes', label: '📝 Candidate Prep Journal', badge: 'Debrief Notes' }
+        { id: 'stages', label: '⚡ Selection Stages', badge: `${activePlan.stages?.length || 0}` },
+        { id: 'company_leetcode', label: `💻 ${activePlan.org_name} Coding`, badge: 'Real Qs' },
+        { id: 'quant_systems', label: '⚡ Low-Latency C++', badge: 'Systems' },
+        { id: 'neetcode', label: '🧠 NeetCode 150', badge: 'Core' },
+        { id: 'mock_interview', label: '🎙️ Mock Sessions', badge: 'AI' },
+        { id: 'notes', label: '📝 Prep Notes', badge: 'Journal' }
       ];
     }
 
     // Standard Private Tech, EU Visa Sponsors & Global MNCs
     return [
-      { id: 'stages', label: '🏢 Hiring Stages (OA to Onsite)', badge: `${activePlan.stages?.length || 0} Stages` },
-      { id: 'company_leetcode', label: `💻 ${activePlan.org_name} LeetCode Bank`, badge: 'Company Tagged' },
-      { id: 'devops', label: '🐧 DevOps, Cloud & SRE Bank', badge: 'DevOps Exercises' },
-      { id: 'neetcode', label: '🧠 NeetCode 150 Core Patterns', badge: '18 Patterns' },
-      { id: 'mock_interview', label: '🎙️ Grounded Mock Sessions', badge: 'STAR & Tech AI' },
-      { id: 'notes', label: '📝 Candidate Prep Journal', badge: 'Debrief Notes' }
+      { id: 'stages', label: '🏢 Hiring Stages', badge: `${activePlan.stages?.length || 0}` },
+      { id: 'company_leetcode', label: `💻 ${activePlan.org_name} Questions`, badge: 'Real Qs' },
+      { id: 'devops', label: '🐧 Cloud & Systems', badge: 'Hands-on' },
+      { id: 'neetcode', label: '🧠 NeetCode 150', badge: 'Core' },
+      { id: 'mock_interview', label: '🎙️ Mock Sessions', badge: 'AI' },
+      { id: 'notes', label: '📝 Prep Notes', badge: 'Journal' }
     ];
   }, [activePlan, isPSU, isQuant]);
 
@@ -546,20 +546,20 @@ export default function JobHuntPrep() {
   }
 
   return (
-    <div style={{ width: '100%', maxWidth: 1240, margin: '0 auto', padding: '16px 20px 40px', boxSizing: 'border-box', overflowX: 'hidden' }}>
+    <div style={{ width: '100%', maxWidth: 1200, margin: '0 auto', padding: '24px 20px 60px', boxSizing: 'border-box' }}>
       {/* ── Top Header Bar ── */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 14, marginBottom: 20 }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--ink)' }}>
+            <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: 'var(--ink)', letterSpacing: '-0.02em' }}>
               Interview & Exam Preparation Hub
             </h1>
             <span style={{
               display: 'inline-flex',
               alignItems: 'center',
-              padding: '2px 8px',
+              padding: '3px 10px',
               borderRadius: 12,
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: 600,
               background: 'rgba(52, 211, 153, 0.12)',
               color: '#34d399',
@@ -568,14 +568,14 @@ export default function JobHuntPrep() {
               ✓ {plans.length} Orgs Indexed
             </span>
           </div>
-          <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginTop: 3 }}>
+          <div style={{ fontSize: 13.5, color: 'var(--ink-soft)', marginTop: 4 }}>
             Tailored hiring patterns, CBT exam schemes, and direct question banks.
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ fontSize: 12, color: 'var(--ink-soft)', background: 'var(--paper-raised)', padding: '6px 12px', borderRadius: 8, border: '1px solid var(--hairline)' }}>
-            Practice Progress: <strong style={{ color: '#34d399' }}>{questionStats.grandSolved}</strong> / {questionStats.grandTotal} Solved
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ fontSize: 13, color: 'var(--ink-soft)', background: 'var(--paper-raised)', padding: '8px 14px', borderRadius: 10, border: '1px solid var(--hairline)' }}>
+            Practice Progress: <strong style={{ color: '#34d399', fontSize: 14 }}>{questionStats.grandSolved}</strong> / {questionStats.grandTotal} Solved
           </div>
           <button
             type="button"
@@ -583,13 +583,14 @@ export default function JobHuntPrep() {
             style={{
               display: 'inline-flex',
               alignItems: 'center',
-              gap: 5,
-              padding: '6px 12px',
-              borderRadius: 8,
+              gap: 6,
+              padding: '8px 14px',
+              borderRadius: 10,
               background: 'var(--paper-raised)',
               border: '1px solid var(--hairline)',
               color: 'var(--ink)',
-              fontSize: 12,
+              fontSize: 13,
+              fontWeight: 500,
               cursor: 'pointer'
             }}
             onClick={() => setShowCustomResearchModal(true)}
@@ -600,21 +601,21 @@ export default function JobHuntPrep() {
         </div>
       </div>
 
-      {/* ── Sleek Target Organization Command Bar (Replaces Cramped Left Sidebar) ── */}
+      {/* ── Target Organization Command Bar ── */}
       <div style={{
         background: 'var(--paper-raised)',
         border: '1px solid var(--hairline)',
-        borderRadius: 12,
-        padding: '12px 16px',
-        marginBottom: 16,
+        borderRadius: 14,
+        padding: '16px 20px',
+        marginBottom: 20,
         display: 'flex',
         flexDirection: 'column',
-        gap: 10
+        gap: 14
       }}>
         {/* Category Filter Pills */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-            <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--ink-faint)', fontWeight: 600, marginRight: 4 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <span style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--ink-faint)', fontWeight: 700, marginRight: 2 }}>
               Sector:
             </span>
             {[
@@ -630,14 +631,15 @@ export default function JobHuntPrep() {
                 type="button"
                 className={`btn btn-sm ${categoryFilter === f.id ? 'active' : ''}`}
                 style={{
-                  fontSize: 11.5,
-                  padding: '3px 10px',
-                  borderRadius: 6,
-                  border: categoryFilter === f.id ? '1px solid #3b82f6' : '1px solid var(--hairline)',
-                  background: categoryFilter === f.id ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
-                  color: categoryFilter === f.id ? '#60a5fa' : 'var(--ink-soft)',
+                  fontSize: 12.5,
+                  padding: '5px 12px',
+                  borderRadius: 8,
+                  border: categoryFilter === f.id ? '1px solid #8b5cf6' : '1px solid var(--hairline)',
+                  background: categoryFilter === f.id ? 'rgba(139, 92, 246, 0.18)' : 'transparent',
+                  color: categoryFilter === f.id ? '#c4b5fd' : 'var(--ink-soft)',
                   fontWeight: categoryFilter === f.id ? 600 : 400,
-                  cursor: 'pointer'
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
                 }}
                 onClick={() => handleSelectCategory(f.id)}
               >
@@ -646,23 +648,23 @@ export default function JobHuntPrep() {
             ))}
           </div>
 
-          <div style={{ fontSize: 11.5, color: 'var(--ink-faint)' }}>
+          <div style={{ fontSize: 12, color: 'var(--ink-faint)' }}>
             Showing {filteredPlans.length} organization{filteredPlans.length !== 1 ? 's' : ''}
           </div>
         </div>
 
         {/* Company Quick-Switcher Controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           {/* Quick jump search */}
-          <div style={{ position: 'relative', width: 220 }}>
+          <div style={{ position: 'relative', width: 240 }}>
             <input
               type="text"
               className="form-control"
               style={{
                 width: '100%',
-                fontSize: 12,
-                padding: '6px 10px',
-                borderRadius: 6,
+                fontSize: 13,
+                padding: '8px 12px',
+                borderRadius: 8,
                 border: '1px solid var(--hairline)',
                 background: 'var(--input-bg)',
                 color: 'var(--ink)'
@@ -678,21 +680,21 @@ export default function JobHuntPrep() {
             type="button"
             className="btn btn-sm"
             onClick={() => handleStepOrg(-1)}
-            style={{ padding: '6px 10px', fontSize: 12, border: '1px solid var(--hairline)' }}
+            style={{ padding: '8px 14px', fontSize: 13, borderRadius: 8, border: '1px solid var(--hairline)' }}
             title="Previous organization"
           >
             ‹ Prev
           </button>
 
           {/* Master Organization Dropdown Selector */}
-          <div style={{ flex: 1, minWidth: 260 }}>
+          <div style={{ flex: 1, minWidth: 280 }}>
             <select
               style={{
                 width: '100%',
-                fontSize: 13,
+                fontSize: 13.5,
                 fontWeight: 600,
-                padding: '6px 12px',
-                borderRadius: 6,
+                padding: '8px 14px',
+                borderRadius: 8,
                 border: '1px solid var(--hairline)',
                 background: 'var(--input-bg)',
                 color: 'var(--ink)',
@@ -721,7 +723,7 @@ export default function JobHuntPrep() {
             type="button"
             className="btn btn-sm"
             onClick={() => handleStepOrg(1)}
-            style={{ padding: '6px 10px', fontSize: 12, border: '1px solid var(--hairline)' }}
+            style={{ padding: '8px 14px', fontSize: 13, borderRadius: 8, border: '1px solid var(--hairline)' }}
             title="Next organization"
           >
             Next ›
@@ -735,23 +737,23 @@ export default function JobHuntPrep() {
           <div style={{
             background: 'var(--paper-raised)',
             border: '1px solid var(--hairline)',
-            borderRadius: 12,
-            padding: '16px 20px',
-            marginBottom: 16
+            borderRadius: 16,
+            padding: '22px 26px',
+            marginBottom: 20
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 14 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                  <h2 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--ink)' }}>
+                  <h2 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: 'var(--ink)', letterSpacing: '-0.02em' }}>
                     {activePlan.org_name}
                   </h2>
                   <span style={{
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: 5,
-                    padding: '3px 8px',
-                    borderRadius: 6,
-                    fontSize: 11.5,
+                    gap: 6,
+                    padding: '4px 10px',
+                    borderRadius: 8,
+                    fontSize: 12,
                     fontWeight: 600,
                     background: procInfo.bg,
                     color: procInfo.color,
@@ -764,10 +766,10 @@ export default function JobHuntPrep() {
                   <span style={{
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: 5,
-                    fontSize: 11.5,
-                    padding: '3px 8px',
-                    borderRadius: 6,
+                    gap: 6,
+                    fontSize: 12,
+                    padding: '4px 10px',
+                    borderRadius: 8,
                     background: confInfo.bg,
                     color: confInfo.color,
                     fontWeight: 600
@@ -779,10 +781,10 @@ export default function JobHuntPrep() {
                     <span style={{
                       display: 'inline-flex',
                       alignItems: 'center',
-                      gap: 5,
-                      fontSize: 11.5,
-                      padding: '3px 8px',
-                      borderRadius: 6,
+                      gap: 6,
+                      fontSize: 12,
+                      padding: '4px 10px',
+                      borderRadius: 8,
                       background: 'rgba(59, 130, 246, 0.12)',
                       color: '#60a5fa',
                       border: '1px solid rgba(59, 130, 246, 0.25)',
@@ -801,19 +803,19 @@ export default function JobHuntPrep() {
                   <button
                     type="button"
                     className="btn btn-sm"
-                    style={{ fontSize: 11, color: 'var(--ink-soft)', padding: '2px 8px', borderRadius: 6, border: '1px solid var(--hairline)' }}
+                    style={{ fontSize: 12, color: 'var(--ink-soft)', padding: '4px 10px', borderRadius: 8, border: '1px solid var(--hairline)' }}
                     onClick={() => setShowSourcesModal(true)}
                   >
                     <span>🔍 Citations ({activePlan.sources?.length || 0})</span>
                   </button>
                 </div>
 
-                <div style={{ fontSize: 14, color: 'var(--ink-soft)', marginTop: 6, fontWeight: 500 }}>
-                  🎯 Target Profile: <strong style={{ color: 'var(--ink)' }}>{activePlan.role_title}</strong>
+                <div style={{ fontSize: 15, color: 'var(--ink)', marginTop: 8, fontWeight: 500 }}>
+                  🎯 Target Profile: <strong style={{ color: '#c4b5fd' }}>{activePlan.role_title}</strong>
                 </div>
 
                 {activePlan.confidence_reason && (
-                  <div style={{ fontSize: 12, color: 'var(--ink-faint)', marginTop: 6, lineHeight: 1.4 }}>
+                  <div style={{ fontSize: 13, color: 'var(--ink-soft)', marginTop: 8, lineHeight: 1.5 }}>
                     ℹ️ {activePlan.confidence_reason}
                   </div>
                 )}
@@ -821,32 +823,32 @@ export default function JobHuntPrep() {
 
               {/* Progress Summary Pill */}
               <div style={{
-                background: 'rgba(255,255,255,0.02)',
+                background: 'rgba(255,255,255,0.03)',
                 border: '1px solid var(--hairline)',
-                borderRadius: 8,
-                padding: '8px 14px',
+                borderRadius: 12,
+                padding: '12px 18px',
                 textAlign: 'right',
-                minWidth: 140
+                minWidth: 150
               }}>
-                <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--ink-faint)', fontWeight: 600 }}>
+                <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--ink-faint)', fontWeight: 700 }}>
                   Readiness Score
                 </div>
-                <div style={{ fontSize: 20, fontWeight: 700, color: progressPct === 100 ? '#34d399' : '#fbbf24', marginTop: 1 }}>
+                <div style={{ fontSize: 24, fontWeight: 700, color: progressPct === 100 ? '#34d399' : '#fbbf24', marginTop: 2 }}>
                   {progressPct}%
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--ink-soft)' }}>
+                <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 2 }}>
                   {masteredCount} of {stagesCount} stages ready
                 </div>
               </div>
             </div>
           </div>
 
-          {/* ── Contextual Adaptive Tab Strip (STRICTLY NO PSU TABS ON OPTIVER/TECH) ── */}
+          {/* ── Contextual Adaptive Tab Strip ── */}
           <div style={{
             display: 'flex',
-            gap: 6,
+            gap: 8,
             borderBottom: '1px solid var(--hairline)',
-            marginBottom: 16,
+            marginBottom: 20,
             overflowX: 'auto',
             paddingBottom: 2
           }}>
@@ -856,28 +858,30 @@ export default function JobHuntPrep() {
                 type="button"
                 onClick={() => setActiveTab(t.id)}
                 style={{
-                  padding: '8px 14px',
-                  borderRadius: '6px 6px 0 0',
+                  padding: '10px 18px',
+                  borderRadius: '10px 10px 0 0',
                   border: 'none',
-                  borderBottom: activeTab === t.id ? '2.5px solid #3b82f6' : '2.5px solid transparent',
-                  background: activeTab === t.id ? 'rgba(59, 130, 246, 0.08)' : 'transparent',
-                  color: activeTab === t.id ? 'var(--ink)' : 'var(--ink-soft)',
+                  borderBottom: activeTab === t.id ? '3px solid #8b5cf6' : '3px solid transparent',
+                  background: activeTab === t.id ? 'rgba(139, 92, 246, 0.12)' : 'transparent',
+                  color: activeTab === t.id ? '#ffffff' : 'var(--ink-soft)',
                   fontWeight: activeTab === t.id ? 700 : 500,
-                  fontSize: 12.5,
+                  fontSize: 13.5,
                   cursor: 'pointer',
                   whiteSpace: 'nowrap',
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: 6
+                  gap: 8,
+                  transition: 'all 0.15s ease'
                 }}
               >
                 <span>{t.label}</span>
                 <span style={{
-                  fontSize: 10.5,
-                  padding: '1px 6px',
-                  borderRadius: 8,
-                  background: activeTab === t.id ? '#3b82f6' : 'rgba(255,255,255,0.06)',
-                  color: activeTab === t.id ? '#FFF' : 'var(--ink-faint)'
+                  fontSize: 11,
+                  padding: '2px 8px',
+                  borderRadius: 10,
+                  background: activeTab === t.id ? '#8b5cf6' : 'rgba(255,255,255,0.06)',
+                  color: activeTab === t.id ? '#FFF' : 'var(--ink-faint)',
+                  fontWeight: 600
                 }}>
                   {t.badge}
                 </span>
@@ -962,17 +966,17 @@ export default function JobHuntPrep() {
               )}
 
               {/* Round-by-Round Stages */}
-              <div style={{ marginBottom: 24 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                  <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: 'var(--ink)' }}>
+              <div style={{ marginBottom: 28 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                  <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--ink)' }}>
                     Round-by-Round Selection Process ({activePlan.stages?.length || 0})
                   </h3>
-                  <span style={{ fontSize: 11.5, color: 'var(--ink-soft)' }}>
+                  <span style={{ fontSize: 12.5, color: 'var(--ink-soft)' }}>
                     Click checkbox to track your readiness
                   </span>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                   {activePlan.stages?.map((stage, sIdx) => {
                     const isDone = completedStages.has(stage.stage_number);
 
@@ -982,20 +986,20 @@ export default function JobHuntPrep() {
                         style={{
                           background: 'var(--paper-raised)',
                           border: isDone ? '1.5px solid #34d399' : '1px solid var(--hairline)',
-                          borderRadius: 10,
-                          padding: '14px 16px',
+                          borderRadius: 14,
+                          padding: '18px 22px',
                           transition: 'all 0.15s ease'
                         }}
                       >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 10 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                             <button
                               type="button"
                               onClick={() => handleToggleStage(stage.stage_number)}
                               style={{
-                                width: 22,
-                                height: 22,
-                                borderRadius: 5,
+                                width: 24,
+                                height: 24,
+                                borderRadius: 6,
                                 border: isDone ? 'none' : '1.5px solid var(--hairline)',
                                 background: isDone ? '#34d399' : 'transparent',
                                 color: '#1B2430',
@@ -1012,43 +1016,43 @@ export default function JobHuntPrep() {
                             </button>
 
                             <div>
-                              <span style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--ink-faint)', fontWeight: 700 }}>
+                              <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#a78bfa', fontWeight: 700 }}>
                                 Stage {stage.stage_number}
                               </span>
-                              <h4 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--ink)' }}>
+                              <h4 style={{ margin: '2px 0 0', fontSize: 16.5, fontWeight: 700, color: 'var(--ink)' }}>
                                 {stage.name}
                               </h4>
                             </div>
                           </div>
 
-                          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                             {stage.duration_mins && (
-                              <span style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, background: 'rgba(255,255,255,0.04)', color: 'var(--ink-soft)', border: '1px solid var(--hairline)' }}>
+                              <span style={{ fontSize: 12, padding: '3px 8px', borderRadius: 6, background: 'rgba(255,255,255,0.04)', color: 'var(--ink-soft)', border: '1px solid var(--hairline)' }}>
                                 ⏱️ {stage.duration_mins} mins
                               </span>
                             )}
                             {stage.weightage_or_elimination && (
-                              <span style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, background: 'rgba(239, 68, 68, 0.08)', color: '#f87171', fontWeight: 600 }}>
+                              <span style={{ fontSize: 12, padding: '3px 8px', borderRadius: 6, background: 'rgba(239, 68, 68, 0.08)', color: '#f87171', fontWeight: 600 }}>
                                 {stage.weightage_or_elimination}
                               </span>
                             )}
                           </div>
                         </div>
 
-                        <p style={{ fontSize: 13, color: 'var(--ink-soft)', margin: '8px 0 8px 0', lineHeight: 1.45 }}>
+                        <p style={{ fontSize: 14, color: 'var(--ink)', margin: '12px 0', lineHeight: 1.6 }}>
                           {stage.description}
                         </p>
 
                         {stage.key_topics && stage.key_topics.length > 0 && (
-                          <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 8 }}>
+                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
                             {stage.key_topics.map((top, tIdx) => (
                               <span
                                 key={tIdx}
                                 style={{
-                                  fontSize: 11,
-                                  padding: '1px 6px',
-                                  borderRadius: 4,
-                                  background: 'rgba(255,255,255,0.03)',
+                                  fontSize: 12,
+                                  padding: '3px 10px',
+                                  borderRadius: 6,
+                                  background: 'rgba(255,255,255,0.04)',
                                   border: '1px solid var(--hairline)',
                                   color: 'var(--ink)'
                                 }}
@@ -1063,16 +1067,17 @@ export default function JobHuntPrep() {
                           <div style={{
                             background: 'var(--input-bg)',
                             border: '1px solid var(--hairline)',
-                            borderRadius: 6,
-                            padding: '8px 12px',
+                            borderRadius: 8,
+                            padding: '12px 16px',
                             fontFamily: 'var(--font-mono)',
-                            fontSize: 11.5,
+                            fontSize: 13,
+                            lineHeight: 1.6,
                             color: 'var(--ink)',
-                            marginTop: 6
+                            marginTop: 10
                           }}>
                             {stage.sample_questions.map((q, qIdx) => (
-                              <div key={qIdx} style={{ padding: '2px 0' }}>
-                                <span style={{ color: '#34d399', marginRight: 6 }}>▶</span>
+                              <div key={qIdx} style={{ padding: '3px 0' }}>
+                                <span style={{ color: '#34d399', marginRight: 8 }}>▶</span>
                                 {q}
                               </div>
                             ))}
@@ -1089,30 +1094,30 @@ export default function JobHuntPrep() {
                 <div style={{
                   background: 'var(--paper-raised)',
                   border: '1px solid var(--hairline)',
-                  borderRadius: 12,
-                  padding: '16px 18px',
-                  marginBottom: 20
+                  borderRadius: 14,
+                  padding: '20px 22px',
+                  marginBottom: 24
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                    <span style={{ fontSize: 18 }}>🗺️</span>
-                    <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--ink)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                    <span style={{ fontSize: 20 }}>🗺️</span>
+                    <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: 'var(--ink)' }}>
                       Preparation Milestones & Phased Plan
                     </h3>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 10 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
                     {activePlan.prep_roadmap.map((phase, pIdx) => (
-                      <div key={pIdx} style={{ background: 'rgba(255,255,255,0.015)', border: '1px solid var(--hairline)', borderRadius: 8, padding: '12px 14px' }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)' }}>
+                      <div key={pIdx} style={{ background: 'rgba(255,255,255,0.015)', border: '1px solid var(--hairline)', borderRadius: 10, padding: '14px 16px' }}>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)' }}>
                           {phase.phase}
                         </div>
-                        <div style={{ fontSize: 11.5, color: '#60a5fa', fontWeight: 600, marginTop: 2 }}>
+                        <div style={{ fontSize: 12.5, color: '#60a5fa', fontWeight: 600, marginTop: 4 }}>
                           {phase.focus}
                         </div>
                         {phase.tasks && (
-                          <ul style={{ margin: '8px 0 0 0', paddingLeft: 16, fontSize: 11.5, color: 'var(--ink-soft)', lineHeight: 1.4 }}>
+                          <ul style={{ margin: '10px 0 0 0', paddingLeft: 18, fontSize: 13, color: 'var(--ink-soft)', lineHeight: 1.6 }}>
                             {phase.tasks.map((task, tIdx) => (
-                              <li key={tIdx}>{task}</li>
+                              <li key={tIdx} style={{ marginBottom: 4 }}>{task}</li>
                             ))}
                           </ul>
                         )}
@@ -1131,24 +1136,24 @@ export default function JobHuntPrep() {
               <div style={{
                 background: 'var(--paper-raised)',
                 border: '1px solid var(--hairline)',
-                borderRadius: 10,
-                padding: '10px 14px',
-                marginBottom: 14,
+                borderRadius: 12,
+                padding: '14px 18px',
+                marginBottom: 18,
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 flexWrap: 'wrap',
-                gap: 10
+                gap: 12
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 240 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 260 }}>
                   <input
                     type="text"
                     className="form-control"
                     style={{
                       width: '100%',
-                      fontSize: 12.5,
-                      padding: '6px 10px',
-                      borderRadius: 6,
+                      fontSize: 13.5,
+                      padding: '8px 14px',
+                      borderRadius: 8,
                       border: '1px solid var(--hairline)',
                       background: 'var(--input-bg)',
                       color: 'var(--ink)'
@@ -1159,22 +1164,23 @@ export default function JobHuntPrep() {
                   />
                 </div>
 
-                <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                   {/* Difficulty selector */}
-                  <div style={{ display: 'flex', gap: 3 }}>
+                  <div style={{ display: 'flex', gap: 4 }}>
                     {['all', 'easy', 'medium', 'hard'].map(d => (
                       <button
                         key={d}
                         type="button"
                         className="btn btn-sm"
                         style={{
-                          fontSize: 11,
-                          padding: '3px 8px',
-                          borderRadius: 5,
-                          border: difficultyFilter === d ? '1px solid #3b82f6' : '1px solid var(--hairline)',
-                          background: difficultyFilter === d ? 'rgba(59, 130, 246, 0.15)' : 'transparent',
-                          color: difficultyFilter === d ? '#60a5fa' : 'var(--ink-soft)',
-                          textTransform: 'capitalize'
+                          fontSize: 12,
+                          padding: '5px 10px',
+                          borderRadius: 6,
+                          border: difficultyFilter === d ? '1px solid #8b5cf6' : '1px solid var(--hairline)',
+                          background: difficultyFilter === d ? 'rgba(139, 92, 246, 0.18)' : 'transparent',
+                          color: difficultyFilter === d ? '#c4b5fd' : 'var(--ink-soft)',
+                          textTransform: 'capitalize',
+                          fontWeight: difficultyFilter === d ? 600 : 400
                         }}
                         onClick={() => setDifficultyFilter(d)}
                       >
@@ -1187,7 +1193,7 @@ export default function JobHuntPrep() {
                   {availableTopics.length > 0 && (
                     <select
                       className="form-control"
-                      style={{ fontSize: 11.5, padding: '3px 8px', borderRadius: 5, height: 28, border: '1px solid var(--hairline)', background: 'var(--input-bg)', color: 'var(--ink)' }}
+                      style={{ fontSize: 12.5, padding: '5px 10px', borderRadius: 6, height: 32, border: '1px solid var(--hairline)', background: 'var(--input-bg)', color: 'var(--ink)' }}
                       value={topicFilter}
                       onChange={e => setTopicFilter(e.target.value)}
                     >
@@ -1202,24 +1208,24 @@ export default function JobHuntPrep() {
 
               {/* Question Cards */}
               {loadingQuestions ? (
-                <div style={{ textAlign: 'center', padding: '30px 20px', color: 'var(--ink-soft)' }}>
+                <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--ink-soft)', fontSize: 14 }}>
                   Loading technical questions…
                 </div>
               ) : questions.length === 0 ? (
                 <div style={{
                   background: 'var(--paper-raised)',
                   border: '1px dashed var(--hairline)',
-                  borderRadius: 10,
-                  padding: '30px 20px',
+                  borderRadius: 14,
+                  padding: '36px 20px',
                   textAlign: 'center',
                   color: 'var(--ink-soft)'
                 }}>
-                  <div style={{ fontSize: 20, marginBottom: 6 }}>🔍</div>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>No questions match this filter.</div>
-                  <div style={{ fontSize: 12, marginTop: 4 }}>Try clearing the search query or changing difficulty.</div>
+                  <div style={{ fontSize: 24, marginBottom: 8 }}>🔍</div>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--ink)' }}>No questions match this filter.</div>
+                  <div style={{ fontSize: 13, marginTop: 4 }}>Try clearing the search query or changing difficulty.</div>
                 </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                   {questions.map(q => {
                     const diff = DIFFICULTY_CONFIG[q.difficulty] || DIFFICULTY_CONFIG.medium;
                     const isSol = Boolean(q.is_solved);
@@ -1232,27 +1238,27 @@ export default function JobHuntPrep() {
                         style={{
                           background: 'var(--paper-raised)',
                           border: isSol ? '1.5px solid #34d399' : '1px solid var(--hairline)',
-                          borderRadius: 10,
-                          padding: '14px 16px',
+                          borderRadius: 14,
+                          padding: '18px 22px',
                           transition: 'all 0.15s ease'
                         }}
                       >
                         {/* Header: Checkbox + Title + Metadata */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
-                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
                             <input
                               type="checkbox"
                               checked={isSol}
                               onChange={() => handleToggleQuestionSolved(q.id, isSol)}
-                              style={{ width: 17, height: 17, marginTop: 2, cursor: 'pointer', accentColor: '#34d399' }}
+                              style={{ width: 19, height: 19, marginTop: 2, cursor: 'pointer', accentColor: '#34d399' }}
                               title={isSol ? 'Mark Unsolved' : 'Mark Solved'}
                             />
 
                             <div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                                 <h4 style={{
                                   margin: 0,
-                                  fontSize: 14.5,
+                                  fontSize: 16,
                                   fontWeight: 700,
                                   color: isSol ? 'var(--ink-soft)' : 'var(--ink)',
                                   textDecoration: isSol ? 'line-through' : 'none'
@@ -1261,28 +1267,28 @@ export default function JobHuntPrep() {
                                 </h4>
 
                                 {q.company_tag && q.company_tag !== 'General' && (
-                                  <span style={{ fontSize: 10.5, padding: '1px 6px', borderRadius: 4, background: 'rgba(59, 130, 246, 0.1)', color: '#60a5fa', fontWeight: 600 }}>
+                                  <span style={{ fontSize: 11.5, padding: '2px 8px', borderRadius: 6, background: 'rgba(59, 130, 246, 0.12)', color: '#60a5fa', fontWeight: 600 }}>
                                     🏢 {q.company_tag}
                                   </span>
                                 )}
 
-                                <span style={{ fontSize: 10.5, padding: '1px 6px', borderRadius: 4, background: diff.bg, color: diff.color, fontWeight: 600 }}>
+                                <span style={{ fontSize: 11.5, padding: '2px 8px', borderRadius: 6, background: diff.bg, color: diff.color, fontWeight: 600 }}>
                                   {diff.label}
                                 </span>
 
-                                <span style={{ fontSize: 10.5, padding: '1px 6px', borderRadius: 4, background: 'rgba(255,255,255,0.04)', color: 'var(--ink-soft)' }}>
+                                <span style={{ fontSize: 11.5, padding: '2px 8px', borderRadius: 6, background: 'rgba(255,255,255,0.04)', color: 'var(--ink-soft)' }}>
                                   📁 {q.topic}
                                 </span>
 
                                 {q.frequency_pct && (
-                                  <span style={{ fontSize: 10.5, color: '#34d399', fontWeight: 600 }}>
+                                  <span style={{ fontSize: 11.5, color: '#34d399', fontWeight: 600 }}>
                                     🔥 {q.frequency_pct}% Freq
                                   </span>
                                 )}
                               </div>
 
                               {/* Question Statement */}
-                              <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginTop: 6, lineHeight: 1.45, whiteSpace: 'pre-line' }}>
+                              <div style={{ fontSize: 14, color: 'var(--ink)', marginTop: 8, lineHeight: 1.65, whiteSpace: 'pre-line' }}>
                                 {q.question_text}
                               </div>
                             </div>
@@ -1295,14 +1301,15 @@ export default function JobHuntPrep() {
                               rel="noopener noreferrer"
                               className="btn btn-sm"
                               style={{
-                                fontSize: 11,
-                                padding: '3px 8px',
+                                fontSize: 12,
+                                padding: '4px 10px',
+                                borderRadius: 6,
                                 color: '#60a5fa',
                                 border: '1px solid rgba(96, 165, 250, 0.25)',
                                 whiteSpace: 'nowrap',
                                 display: 'inline-flex',
                                 alignItems: 'center',
-                                gap: 3
+                                gap: 4
                               }}
                             >
                               <span>Solve ↗</span>
@@ -1311,17 +1318,18 @@ export default function JobHuntPrep() {
                         </div>
 
                         {/* Action Buttons: Solution & Notes */}
-                        <div style={{ display: 'flex', gap: 8, marginTop: 10, alignItems: 'center' }}>
+                        <div style={{ display: 'flex', gap: 10, marginTop: 12, alignItems: 'center' }}>
                           {q.answer_text && (
                             <button
                               type="button"
                               className="btn btn-sm"
                               style={{
-                                fontSize: 11,
-                                padding: '3px 8px',
-                                borderRadius: 5,
-                                background: isExpanded ? 'rgba(59, 130, 246, 0.15)' : 'rgba(255,255,255,0.04)',
-                                color: isExpanded ? '#60a5fa' : 'var(--ink-soft)'
+                                fontSize: 12,
+                                padding: '4px 10px',
+                                borderRadius: 6,
+                                background: isExpanded ? 'rgba(139, 92, 246, 0.18)' : 'rgba(255,255,255,0.04)',
+                                color: isExpanded ? '#c4b5fd' : 'var(--ink-soft)',
+                                border: isExpanded ? '1px solid rgba(139, 92, 246, 0.3)' : '1px solid var(--hairline)'
                               }}
                               onClick={() => handleToggleSolution(q.id)}
                             >
@@ -1333,11 +1341,12 @@ export default function JobHuntPrep() {
                             type="button"
                             className="btn btn-sm"
                             style={{
-                              fontSize: 11,
-                              padding: '3px 8px',
-                              borderRadius: 5,
+                              fontSize: 12,
+                              padding: '4px 10px',
+                              borderRadius: 6,
                               background: 'transparent',
-                              color: 'var(--ink-soft)'
+                              color: 'var(--ink-soft)',
+                              border: '1px solid var(--hairline)'
                             }}
                             onClick={() => {
                               if (isEditingNote) {
@@ -1355,25 +1364,25 @@ export default function JobHuntPrep() {
                         {/* Expandable Solution Accordion */}
                         {isExpanded && q.answer_text && (
                           <div style={{
-                            marginTop: 10,
+                            marginTop: 12,
                             background: 'var(--input-bg)',
                             border: '1px solid var(--hairline)',
-                            borderRadius: 6,
-                            padding: '12px 14px'
+                            borderRadius: 10,
+                            padding: '16px 18px'
                           }}>
-                            <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '0.04em', color: '#34d399', fontWeight: 700, marginBottom: 4 }}>
+                            <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#34d399', fontWeight: 700, marginBottom: 8 }}>
                               ✓ Technical Solution & Complexity
                             </div>
                             <div style={{
-                              fontSize: 12,
+                              fontSize: 13.5,
                               color: 'var(--ink)',
-                              lineHeight: 1.5,
+                              lineHeight: 1.6,
                               whiteSpace: 'pre-wrap',
                               fontFamily: 'var(--font-mono)'
                             }}>
                               {q.answer_text}
                             </div>
-                            <div style={{ fontSize: 10, color: 'var(--ink-faint)', marginTop: 6, textAlign: 'right' }}>
+                            <div style={{ fontSize: 11, color: 'var(--ink-faint)', marginTop: 8, textAlign: 'right' }}>
                               Source: {q.source_repo}
                             </div>
                           </div>
@@ -1381,14 +1390,14 @@ export default function JobHuntPrep() {
 
                         {/* Note Editor */}
                         {isEditingNote && (
-                          <div style={{ marginTop: 8, background: 'rgba(255,255,255,0.02)', border: '1px solid var(--hairline)', borderRadius: 6, padding: 8 }}>
+                          <div style={{ marginTop: 10, background: 'rgba(255,255,255,0.02)', border: '1px solid var(--hairline)', borderRadius: 8, padding: 10 }}>
                             <textarea
                               style={{
                                 width: '100%',
-                                minHeight: 50,
-                                padding: 6,
-                                fontSize: 11.5,
-                                borderRadius: 5,
+                                minHeight: 60,
+                                padding: 8,
+                                fontSize: 13,
+                                borderRadius: 6,
                                 border: '1px solid var(--hairline)',
                                 background: 'var(--input-bg)',
                                 color: 'var(--ink)',
@@ -1398,11 +1407,11 @@ export default function JobHuntPrep() {
                               value={tempQuestionNotes}
                               onChange={e => setTempQuestionNotes(e.target.value)}
                             />
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, marginTop: 4 }}>
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 6 }}>
                               <button
                                 type="button"
                                 className="btn btn-sm"
-                                style={{ fontSize: 11, padding: '2px 8px' }}
+                                style={{ fontSize: 12, padding: '3px 10px' }}
                                 onClick={() => setActiveNoteEditingId(null)}
                               >
                                 Cancel
@@ -1450,28 +1459,28 @@ export default function JobHuntPrep() {
               <div style={{
                 background: 'var(--paper-raised)',
                 border: '1px solid var(--hairline)',
-                borderRadius: 12,
-                padding: '16px 20px',
-                marginBottom: 20
+                borderRadius: 14,
+                padding: '20px 24px',
+                marginBottom: 24
               }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 18 }}>📝</span>
-                    <h3 style={{ margin: 0, fontSize: 15.5, fontWeight: 700, color: 'var(--ink)' }}>
-                      Preparation Journal & Mock Interview Notes — {activePlan.org_name}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 20 }}>📝</span>
+                    <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: 'var(--ink)' }}>
+                      Preparation Journal & Interview Debriefs — {activePlan.org_name}
                     </h3>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     {notesSuccess && (
-                      <span style={{ fontSize: 11.5, color: '#34d399', fontWeight: 600 }}>
+                      <span style={{ fontSize: 12.5, color: '#34d399', fontWeight: 600 }}>
                         ✓ Saved!
                       </span>
                     )}
                     <button
                       type="button"
                       className="btn btn-primary btn-sm"
-                      style={{ fontSize: 11.5, padding: '4px 10px' }}
+                      style={{ fontSize: 12.5, padding: '5px 12px', borderRadius: 6 }}
                       disabled={savingNotes}
                       onClick={handleSaveNotes}
                     >
@@ -1483,14 +1492,14 @@ export default function JobHuntPrep() {
                 <textarea
                   style={{
                     width: '100%',
-                    minHeight: 120,
-                    padding: 10,
-                    borderRadius: 6,
+                    minHeight: 140,
+                    padding: '12px 14px',
+                    borderRadius: 8,
                     border: '1px solid var(--hairline)',
                     background: 'var(--input-bg)',
                     color: 'var(--ink)',
-                    fontSize: 12.5,
-                    lineHeight: 1.45,
+                    fontSize: 13.5,
+                    lineHeight: 1.6,
                     fontFamily: 'inherit',
                     resize: 'vertical'
                   }}
@@ -1504,17 +1513,17 @@ export default function JobHuntPrep() {
               <div style={{
                 background: 'var(--paper-raised)',
                 border: '1px solid var(--hairline)',
-                borderRadius: 12,
-                padding: '16px 20px'
+                borderRadius: 14,
+                padding: '20px 24px'
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                  <span style={{ fontSize: 18 }}>📚</span>
-                  <h3 style={{ margin: 0, fontSize: 15.5, fontWeight: 700, color: 'var(--ink)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                  <span style={{ fontSize: 20 }}>📚</span>
+                  <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: 'var(--ink)' }}>
                     Curated Technical Repositories (Mapped for {activePlan.org_name})
                   </h3>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 10 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
                   {(activePlan.curated_resources || []).map((res, idx) => (
                     <a
                       key={idx}
@@ -1525,17 +1534,18 @@ export default function JobHuntPrep() {
                         display: 'block',
                         background: 'rgba(255,255,255,0.015)',
                         border: '1px solid var(--hairline)',
-                        borderRadius: 8,
-                        padding: '10px 12px',
+                        borderRadius: 10,
+                        padding: '12px 16px',
                         textDecoration: 'none',
-                        color: 'inherit'
+                        color: 'inherit',
+                        transition: 'all 0.15s ease'
                       }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontWeight: 600, fontSize: 12.5, color: '#60a5fa' }}>{res.name}</span>
-                        <span style={{ fontSize: 11, color: 'var(--ink-faint)' }}>↗</span>
+                        <span style={{ fontWeight: 600, fontSize: 13.5, color: '#60a5fa' }}>{res.name}</span>
+                        <span style={{ fontSize: 12, color: 'var(--ink-faint)' }}>↗</span>
                       </div>
-                      <div style={{ fontSize: 11, color: 'var(--ink-soft)', marginTop: 3, lineHeight: 1.35 }}>
+                      <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', marginTop: 4, lineHeight: 1.5 }}>
                         {res.description}
                       </div>
                     </a>

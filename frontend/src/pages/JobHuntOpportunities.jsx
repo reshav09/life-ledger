@@ -18,7 +18,7 @@ const CATEGORY_GROUPS = [
   { id: 'research_internship', label: 'Research Fellowships', icon: '🔬' },
   { id: 'psu', label: 'PSUs', icon: '🏭' },
   { id: 'govt', label: 'Govt & Strategic R&D', icon: '🏛️' },
-  { id: 'private_in', label: 'Indian Private (≥ ₹20 LPA)', icon: '🇮🇳' },
+  { id: 'private_in', label: 'Indian Private Tech', icon: '🇮🇳' },
   { id: 'quant_hft', label: 'Quant & HFT', icon: '⚡' },
   { id: 'private_eu', label: 'EU Visa (≥ €100k)', icon: '🇪🇺' },
   { id: 'private_sg', label: 'Singapore Visa (≥ S$135k)', icon: '🇸🇬' },
@@ -409,7 +409,7 @@ export default function JobHuntOpportunities() {
         <div className="page-eyebrow">Scored against your profile · Domestic & Global</div>
         <h1 className="page-title">Opportunities Explorer</h1>
         <p className="page-sub">
-          Ranked opportunities categorized across Indian PSUs, Govt R&D, Domestic Tech (≥20 LPA) & Visa-Sponsored International roles (≥$100k+).
+          Ranked opportunities categorized across Indian PSUs, Govt R&D, Domestic Tech & Visa-Sponsored International roles.
         </p>
       </div>
 
@@ -787,7 +787,7 @@ export default function JobHuntOpportunities() {
                   <option value="research_internship">🔬 Fully Funded Research Fellowship / Internship</option>
                   <option value="psu">🏭 PSU</option>
                   <option value="govt">🏛️ Government & Strategic R&D</option>
-                  <option value="private_in">🇮🇳 Indian Private (≥ ₹20 LPA)</option>
+                  <option value="private_in">🇮🇳 Indian Private Tech</option>
                   <option value="quant_hft">⚡ Quant & HFT Fund</option>
                   <option value="private_eu">🇪🇺 EU Countries (Visa Sponsored · ≥ €100k)</option>
                   <option value="private_sg">🇸🇬 Singapore (Visa Sponsored · ≥ S$135k)</option>

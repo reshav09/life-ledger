@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api.js';
 import { useTheme } from '../ThemeContext.jsx';
-import BackupSection from '../components/BackupSection.jsx';
 
 export default function JobHuntSettings() {
   const { theme, toggleTheme } = useTheme();
@@ -91,7 +90,7 @@ export default function JobHuntSettings() {
         <div className="page-eyebrow">Pipeline & Engine Preferences</div>
         <h1 className="page-title">Job Hunt Settings</h1>
         <p className="page-sub">
-          Customize matching score cutoffs, crawler polling defaults, pipeline workflow stages, appearance, and full database backups.
+          Customize matching score cutoffs, crawler polling defaults, pipeline workflow stages, and appearance.
         </p>
       </div>
 
@@ -486,13 +485,6 @@ export default function JobHuntSettings() {
           </div>
         </div>
       </div>
-
-      {/* Full-width Database Backups & Restore Section */}
-      <BackupSection
-        ledger="jobhunt"
-        title="Database Backups & Restore"
-        description="Automatic weekly backups capture all Job Hunt tables (profile, organizations, opportunities, and applications) along with your full Life Ledger database. You can trigger an instant backup or restore anytime."
-      />
     </div>
   );
 }

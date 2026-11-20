@@ -9,7 +9,7 @@ const ORG_CATEGORY_GROUPS = [
   { id: 'research_internship', label: 'Research Fellowships', icon: '🔬' },
   { id: 'psu', label: 'PSUs', icon: '🏭' },
   { id: 'govt', label: 'Govt & Strategic R&D', icon: '🏛️' },
-  { id: 'private_in', label: 'Indian Tech (≥20 LPA)', icon: '🇮🇳' },
+  { id: 'private_in', label: 'Indian Tech', icon: '🇮🇳' },
   { id: 'quant_hft', label: 'Quant & HFT', icon: '⚡' },
   { id: 'private_eu', label: 'EU Visa Providing', icon: '🇪🇺' },
   { id: 'private_sg', label: 'Singapore Visa Providing', icon: '🇸🇬' },
@@ -270,7 +270,7 @@ export default function JobHuntOrgs() {
             </span>
           </h1>
           <p className="page-sub" style={{ maxWidth: 780 }}>
-            Central repository of Indian PSUs, Govt R&D labs, Premier Indian Tech (&ge;20 LPA), and Visa-providing international companies (EU, Singapore, Global Remote).
+            Central repository of Indian PSUs, Govt R&D labs, Premier Indian Tech, and Visa-providing international companies (EU, Singapore, Global Remote).
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -434,7 +434,7 @@ export default function JobHuntOrgs() {
                   <option value="research_internship">🔬 Research Institute / University Lab</option>
                   <option value="psu">🏭 PSU</option>
                   <option value="govt">🏛️ Govt & Strategic R&D</option>
-                  <option value="private_in">🇮🇳 Indian Tech (≥20 LPA)</option>
+                  <option value="private_in">🇮🇳 Indian Tech</option>
                   <option value="quant_hft">⚡ Quant & HFT Fund</option>
                   <option value="private_eu">🇪🇺 EU Countries (Visa Sponsored)</option>
                   <option value="private_sg">🇸🇬 Singapore (Visa Sponsored)</option>
