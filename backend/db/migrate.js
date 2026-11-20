@@ -729,7 +729,7 @@ const MIGRATIONS = [
 
   // Phase 4: Track applications from opportunities
   `ALTER TABLE applications ADD COLUMN IF NOT EXISTS opportunity_id INT DEFAULT NULL`,
-  `ALTER TABLE applications ADD INDEX IF NOT EXISTS idx_app_opp (opportunity_id)`,
+  `ALTER TABLE applications ADD INDEX idx_app_opp (opportunity_id)`,
   `ALTER TABLE jobhunt_opportunities ADD COLUMN IF NOT EXISTS is_applied TINYINT(1) DEFAULT 0`,
   `ALTER TABLE jobhunt_opportunities ADD COLUMN IF NOT EXISTS applied_at TIMESTAMP NULL DEFAULT NULL`,
 
@@ -747,7 +747,7 @@ const MIGRATIONS = [
   `ALTER TABLE jobhunt_opportunities ADD COLUMN IF NOT EXISTS compensation_display VARCHAR(100) NOT NULL DEFAULT ''`,
   // Phase 6: Job Posting Recency & Automated Expiration Rules
   `ALTER TABLE jobhunt_opportunities ADD COLUMN IF NOT EXISTS posted_date DATE NULL DEFAULT NULL`,
-  `ALTER TABLE jobhunt_opportunities ADD INDEX IF NOT EXISTS idx_opp_posted_date (posted_date)`,
+  `ALTER TABLE jobhunt_opportunities ADD INDEX idx_opp_posted_date (posted_date)`,
   `UPDATE jobhunt_opportunities SET posted_date = DATE(discovered_at) WHERE posted_date IS NULL`,
 
   // Phase 7: ATS Direct Ingestion, Confidence Chains, Ghost Job Prevention & Feedback Loop
@@ -901,11 +901,11 @@ const MIGRATIONS = [
   // Phase 9: Document Immortality, Versioning, Artifact Archival & Deduplication
   `ALTER TABLE jobhunt_opportunities ADD COLUMN IF NOT EXISTS external_id VARCHAR(255) NULL`,
   `ALTER TABLE jobhunt_opportunities ADD COLUMN IF NOT EXISTS identity_key CHAR(64) NULL`,
-  `ALTER TABLE jobhunt_opportunities ADD UNIQUE INDEX IF NOT EXISTS idx_jh_identity (identity_key)`,
+  `ALTER TABLE jobhunt_opportunities ADD UNIQUE INDEX idx_jh_identity (identity_key)`,
 
   `ALTER TABLE jobhunt_evidence_claims ADD COLUMN IF NOT EXISTS source_key CHAR(64) NULL`,
   `ALTER TABLE jobhunt_evidence_claims ADD COLUMN IF NOT EXISTS is_active TINYINT(1) NOT NULL DEFAULT 1`,
-  `ALTER TABLE jobhunt_evidence_claims ADD UNIQUE INDEX IF NOT EXISTS idx_jh_evidence_key (source_key)`,
+  `ALTER TABLE jobhunt_evidence_claims ADD UNIQUE INDEX idx_jh_evidence_key (source_key)`,
 
   `ALTER TABLE jobhunt_document_packages ADD COLUMN IF NOT EXISTS profile_snapshot LONGTEXT NULL`,
   `ALTER TABLE jobhunt_document_packages ADD COLUMN IF NOT EXISTS evidence_snapshot LONGTEXT NULL`,
@@ -914,7 +914,7 @@ const MIGRATIONS = [
   `ALTER TABLE jobhunt_document_packages ADD COLUMN IF NOT EXISTS generation_key VARCHAR(64) NULL`,
   `ALTER TABLE jobhunt_document_packages ADD COLUMN IF NOT EXISTS generation_method VARCHAR(32) NOT NULL DEFAULT 'template'`,
   `ALTER TABLE jobhunt_document_packages ADD COLUMN IF NOT EXISTS generation_metadata JSON NULL`,
-  `ALTER TABLE jobhunt_document_packages ADD UNIQUE INDEX IF NOT EXISTS idx_jh_generation_key (generation_key)`,
+  `ALTER TABLE jobhunt_document_packages ADD UNIQUE INDEX idx_jh_generation_key (generation_key)`,
 
   `ALTER TABLE jobhunt_document_reviews ADD COLUMN IF NOT EXISTS content_hash CHAR(64) NULL`,
 
@@ -953,10 +953,15 @@ async function ensureBaseSchema() {
     .filter((s) => s.length > 0);
 
   for (const stmt of statements) {
+    const cleanStmt = stmt
+      .replace(/ADD\s+UNIQUE\s+INDEX\s+IF\s+NOT\s+EXISTS/gi, 'ADD UNIQUE INDEX')
+      .replace(/ADD\s+INDEX\s+IF\s+NOT\s+EXISTS/gi, 'ADD INDEX');
     try {
-      await pool.query(stmt);
+      await pool.query(cleanStmt);
     } catch (err) {
-      if (!err.message.includes('already exists')) {
+      if (!err.message.includes('already exists') &&
+          !err.message.includes('Duplicate key name') &&
+          err.code !== 'ER_DUP_KEYNAME') {
         // Silently skip or log non-fatal warnings
       }
     }
@@ -989,7 +994,28 @@ async function runMigrations() {
     const [[existing]] = await pool.query('SELECT id FROM schema_migrations WHERE migration_hash = ? LIMIT 1', [hash]);
 
     if (!existing) {
-      await pool.query(sql);
+      // Auto-correct MariaDB-specific "INDEX IF NOT EXISTS" into standard MySQL/TiDB syntax
+      const cleanSql = sql
+        .replace(/ADD\s+UNIQUE\s+INDEX\s+IF\s+NOT\s+EXISTS/gi, 'ADD UNIQUE INDEX')
+        .replace(/ADD\s+INDEX\s+IF\s+NOT\s+EXISTS/gi, 'ADD INDEX')
+        .replace(/ADD\s+UNIQUE\s+KEY\s+IF\s+NOT\s+EXISTS/gi, 'ADD UNIQUE KEY')
+        .replace(/ADD\s+KEY\s+IF\s+NOT\s+EXISTS/gi, 'ADD KEY');
+
+      try {
+        await pool.query(cleanSql);
+      } catch (err) {
+        const isIgnorable = err.code === 'ER_DUP_KEYNAME' ||
+                            err.code === 'ER_DUP_FIELDNAME' ||
+                            err.errno === 1061 ||
+                            err.errno === 1060 ||
+                            err.message.includes('Duplicate key name') ||
+                            err.message.includes('Duplicate column name') ||
+                            err.message.includes('already exists');
+        if (!isIgnorable) {
+          throw err;
+        }
+      }
+
       const preview = sql.slice(0, 100).replace(/\s+/g, ' ');
       await pool.query(
         'INSERT INTO schema_migrations (migration_hash, statement_preview) VALUES (?, ?)',

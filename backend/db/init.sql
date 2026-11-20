@@ -596,10 +596,10 @@ CREATE TABLE IF NOT EXISTS jobhunt_mock_sessions (
 -- Additive Job Hunt document safety schema
 ALTER TABLE jobhunt_opportunities ADD COLUMN IF NOT EXISTS external_id VARCHAR(255) NULL;
 ALTER TABLE jobhunt_opportunities ADD COLUMN IF NOT EXISTS identity_key CHAR(64) NULL;
-ALTER TABLE jobhunt_opportunities ADD UNIQUE INDEX IF NOT EXISTS idx_jh_identity (identity_key);
+ALTER TABLE jobhunt_opportunities ADD UNIQUE INDEX idx_jh_identity (identity_key);
 ALTER TABLE jobhunt_evidence_claims ADD COLUMN IF NOT EXISTS source_key CHAR(64) NULL;
 ALTER TABLE jobhunt_evidence_claims ADD COLUMN IF NOT EXISTS is_active TINYINT(1) NOT NULL DEFAULT 1;
-ALTER TABLE jobhunt_evidence_claims ADD UNIQUE INDEX IF NOT EXISTS idx_jh_evidence_key (source_key);
+ALTER TABLE jobhunt_evidence_claims ADD UNIQUE INDEX idx_jh_evidence_key (source_key);
 ALTER TABLE jobhunt_document_packages ADD COLUMN IF NOT EXISTS profile_snapshot LONGTEXT NULL;
 ALTER TABLE jobhunt_document_packages ADD COLUMN IF NOT EXISTS evidence_snapshot LONGTEXT NULL;
 ALTER TABLE jobhunt_document_packages ADD COLUMN IF NOT EXISTS root_package_id INT NULL;
@@ -607,7 +607,7 @@ ALTER TABLE jobhunt_document_packages ADD COLUMN IF NOT EXISTS content_hash CHAR
 ALTER TABLE jobhunt_document_packages ADD COLUMN IF NOT EXISTS generation_key VARCHAR(64) NULL;
 ALTER TABLE jobhunt_document_packages ADD COLUMN IF NOT EXISTS generation_method VARCHAR(32) NOT NULL DEFAULT 'template';
 ALTER TABLE jobhunt_document_packages ADD COLUMN IF NOT EXISTS generation_metadata JSON NULL;
-ALTER TABLE jobhunt_document_packages ADD UNIQUE INDEX IF NOT EXISTS idx_jh_generation_key (generation_key);
+ALTER TABLE jobhunt_document_packages ADD UNIQUE INDEX idx_jh_generation_key (generation_key);
 ALTER TABLE jobhunt_document_reviews ADD COLUMN IF NOT EXISTS content_hash CHAR(64) NULL;
 CREATE TABLE IF NOT EXISTS jobhunt_generation_jobs (
     id CHAR(36) PRIMARY KEY, request_key VARCHAR(64) NOT NULL UNIQUE,
