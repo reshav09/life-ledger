@@ -1,8 +1,12 @@
 const mysql = require('mysql2/promise');
 
 function createDbPool() {
-  const dbUrl = process.env.DATABASE_URL || process.env.MYSQL_URL;
+  let dbUrl = process.env.DATABASE_URL || process.env.MYSQL_URL;
   if (dbUrl) {
+    // Automatically correct common AWS region typo (e.g. us-west2 -> us-west-2)
+    dbUrl = dbUrl.replace(/\.us-(east|west)(\d)\.prod\.aws\./g, '.us-$1-$2.prod.aws.');
+    dbUrl = dbUrl.replace(/\.us(east|west)(\d)\.prod\.aws\./g, '.us-$1-$2.prod.aws.');
+
     const isCloud = dbUrl.includes('tidbcloud.com') || dbUrl.includes('aivencloud.com') || process.env.DB_SSL === 'true';
     return mysql.createPool({
       uri: dbUrl,
