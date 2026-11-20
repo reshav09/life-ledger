@@ -7,6 +7,9 @@ function createDbPool() {
     dbUrl = dbUrl.replace(/\.us-(east|west)(\d)\.prod\.aws\./g, '.us-$1-$2.prod.aws.');
     dbUrl = dbUrl.replace(/\.us(east|west)(\d)\.prod\.aws\./g, '.us-$1-$2.prod.aws.');
 
+    // Auto-rewrite system schema / default database to 'money_tracker' where all Job Radar tables live
+    dbUrl = dbUrl.replace(/\/(?:sys|test)(\?|$)/i, '/money_tracker$1');
+
     const isCloud = dbUrl.includes('tidbcloud.com') || dbUrl.includes('aivencloud.com') || process.env.DB_SSL === 'true';
     return mysql.createPool({
       uri: dbUrl,

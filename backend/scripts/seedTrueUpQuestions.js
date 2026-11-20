@@ -233,10 +233,16 @@ async function seedTrueUpQuestions() {
   }
 
   console.log(`[SeedQuestions] Completed. Inserted: ${inserted}, Skipped: ${skipped}`);
-  process.exit(0);
+  return { inserted, skipped };
 }
 
-seedTrueUpQuestions().catch(err => {
-  console.error('[SeedQuestions] Fatal error:', err);
-  process.exit(1);
-});
+if (require.main === module) {
+  seedTrueUpQuestions()
+    .then(() => process.exit(0))
+    .catch(err => {
+      console.error('[SeedQuestions] Fatal error:', err);
+      process.exit(1);
+    });
+}
+
+module.exports = { seedTrueUpQuestions, TRUE_UP_QUESTIONS };

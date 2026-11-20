@@ -19,61 +19,71 @@ async function seedStandalone() {
       // 1. Seed Base Tier List Companies (FAANG, Unicorns, HFT, MNCs)
       try {
         console.log('[Seed 1/8] Seeding Tier List Companies...');
-        const seedTierList = require('./seedTierListCompanies');
-        if (typeof seedTierList === 'function') await seedTierList();
+        const mod = require('./seedTierListCompanies');
+        const fn = mod.seedTierListCompanies || mod;
+        if (typeof fn === 'function') await fn(pool);
       } catch (e) { console.warn('[Seed TierList]:', e.message); }
 
       // 2. Seed PSUs & Indian Govt R&D
       try {
         console.log('[Seed 2/8] Seeding PSUs & Govt R&D...');
-        const seedPSUs = require('./seedPSUs');
-        if (typeof seedPSUs === 'function') await seedPSUs();
+        const mod = require('./seedPSUs');
+        const fn = mod.seedOrganizations || mod;
+        if (typeof fn === 'function') await fn(pool);
       } catch (e) { console.warn('[Seed PSUs]:', e.message); }
 
       // 3. Seed Research Fellowships & Internships
       try {
         console.log('[Seed 3/8] Seeding Research Fellowships...');
-        const seedResearch = require('./seedResearchInternships');
-        if (typeof seedResearch === 'function') await seedResearch();
+        const mod = require('./seedResearchInternships');
+        const fn = mod.seedResearchInternships || mod;
+        if (typeof fn === 'function') await fn();
       } catch (e) { console.warn('[Seed Research]:', e.message); }
 
       // 4. Seed Startups & Scaleups
       try {
         console.log('[Seed 4/8] Seeding Startups & Scaleups...');
-        const seedStartups = require('./seedStartups');
-        if (typeof seedStartups === 'function') await seedStartups();
+        const mod = require('./seedStartups');
+        const fn = mod.seed || mod;
+        if (typeof fn === 'function') await fn();
       } catch (e) { console.warn('[Seed Startups]:', e.message); }
 
       // 5. Seed EU & International Visa Companies
       try {
         console.log('[Seed 5/8] Seeding EU & Global Visa Orgs...');
-        const syncEU = require('./syncEUOrgs');
-        if (typeof syncEU === 'function') await syncEU();
+        const mod = require('./syncEUOrgs');
+        const fn = mod.syncEUOrgs || mod;
+        if (typeof fn === 'function') await fn();
       } catch (e) { console.warn('[Seed EU]:', e.message); }
 
       // 6. Seed Additional Orgs (NatWest, D.E. Shaw, etc.)
       try {
         console.log('[Seed 6/8] Seeding NatWest & High-Yield Orgs...');
-        const addNatwest = require('./add_natwest');
-        if (typeof addNatwest === 'function') await addNatwest();
+        const mod = require('./add_natwest');
+        const fn = mod.addNatWest || mod;
+        if (typeof fn === 'function') await fn();
       } catch (e) { console.warn('[Seed NatWest]:', e.message); }
 
       // 7. Seed Initial Opportunities
       try {
         console.log('[Seed 7/8] Seeding Opportunities...');
-        const seedOpps = require('./seedOpportunities');
-        if (typeof seedOpps === 'function') await seedOpps();
-        const seedStartupOpps = require('./seedStartupOpportunities');
-        if (typeof seedStartupOpps === 'function') await seedStartupOpps();
+        const mod1 = require('./seedOpportunities');
+        const fn1 = mod1.seedOpportunities || mod1;
+        if (typeof fn1 === 'function') await fn1(pool);
+        const mod2 = require('./seedStartupOpportunities');
+        const fn2 = mod2.seed || mod2;
+        if (typeof fn2 === 'function') await fn2();
       } catch (e) { console.warn('[Seed Opps]:', e.message); }
 
       // 8. Seed Prep Plans & Questions
       try {
         console.log('[Seed 8/8] Seeding Prep Plans & Interview Questions...');
-        const seedPrep = require('./seedAllPrepPlans');
-        if (typeof seedPrep === 'function') await seedPrep();
-        const seedQuestions = require('./seedTrueUpQuestions');
-        if (typeof seedQuestions === 'function') await seedQuestions();
+        const mod1 = require('./seedAllPrepPlans');
+        const fn1 = mod1.seedAllPrepPlans || mod1;
+        if (typeof fn1 === 'function') await fn1();
+        const mod2 = require('./seedTrueUpQuestions');
+        const fn2 = mod2.seedTrueUpQuestions || mod2;
+        if (typeof fn2 === 'function') await fn2();
       } catch (e) { console.warn('[Seed Prep]:', e.message); }
 
       console.log('[Seed] ✓ Full seed sequence complete!');

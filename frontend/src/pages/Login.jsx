@@ -3,6 +3,7 @@ import { useState } from 'react';
 export default function Login({ onSuccess }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -36,147 +37,152 @@ export default function Login({ onSuccess }) {
 
   return (
     <div
+      className="sanctuary-gateway-screen"
       style={{
         minHeight: '100vh',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: 20,
-        background: 'radial-gradient(ellipse at 50% 20%, #171d2b 0%, #0a0d14 100%)',
+        padding: 24,
+        background: 'radial-gradient(ellipse at 50% 25%, #151b28 0%, #080b11 100%)',
         color: '#e2e8f0',
         fontFamily: 'var(--font-sans, system-ui, -apple-system, sans-serif)'
       }}
     >
       <div
-        className="card anim-scale-in"
+        className="sanctuary-floating-card anim-scale-in"
         style={{
+          '--card-accent': '#8b5cf6',
+          '--card-glow': 'rgba(139, 92, 246, 0.35)',
           width: '100%',
-          maxWidth: 420,
+          maxWidth: 410,
           padding: '36px 32px',
-          background: 'rgba(23, 29, 43, 0.75)',
-          backdropFilter: 'blur(20px)',
+          borderRadius: 24,
+          background: 'rgba(13, 19, 29, 0.82)',
+          backdropFilter: 'blur(24px)',
+          WebkitBackdropFilter: 'blur(24px)',
           border: '1px solid rgba(255, 255, 255, 0.08)',
-          borderRadius: 16,
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.6), 0 0 40px rgba(124, 58, 237, 0.15)'
+          boxShadow: '0 30px 70px -15px rgba(0, 0, 0, 0.75), 0 0 45px -5px rgba(139, 92, 246, 0.22)',
+          position: 'relative',
+          overflow: 'hidden'
         }}
       >
-        <div style={{ textAlign: 'center', marginBottom: 28 }}>
-          <div
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: 54,
-              height: 54,
-              borderRadius: 14,
-              background: 'linear-gradient(135deg, rgba(124, 58, 237, 0.3), rgba(79, 70, 229, 0.15))',
-              border: '1px solid rgba(124, 58, 237, 0.4)',
-              fontSize: 26,
-              marginBottom: 16
-            }}
-          >
-            🎯
-          </div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, letterSpacing: '-0.02em', color: '#fff' }}>
-            Job Radar OS
-          </h1>
-          <p style={{ fontSize: 13, color: 'var(--ink-soft, #94a3b8)', marginTop: 6, lineHeight: 1.5 }}>
-            Autonomous opportunity discovery, ATS ingestion, and algorithmic career matching.
-          </p>
-        </div>
+        <div className="sanctuary-card-inner-view sanctuary-auth-view">
+          {/* Card Header matching Sanctuary OS Domain View */}
+          <div className="auth-card-header" style={{ marginBottom: 26 }}>
+            <div>
+              <span
+                className="floating-card-category"
+                style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
+                  color: '#a78bfa'
+                }}
+              >
+                CAREER RADAR
+              </span>
+              <h1
+                className="floating-card-title"
+                style={{
+                  margin: '4px 0 0',
+                  fontSize: 24,
+                  fontWeight: 700,
+                  letterSpacing: '-0.02em',
+                  color: '#ffffff'
+                }}
+              >
+                Job Radar OS
+              </h1>
+              <div
+                className="floating-card-tagline"
+                style={{
+                  color: '#94a3b8',
+                  fontSize: 13,
+                  marginTop: 4
+                }}
+              >
+                Sign in to access your radar
+              </div>
+            </div>
 
-        {error && (
-          <div
-            style={{
-              padding: '10px 14px',
-              borderRadius: 8,
-              background: 'rgba(239, 68, 68, 0.15)',
-              border: '1px solid rgba(239, 68, 68, 0.3)',
-              color: '#f87171',
-              fontSize: 13,
-              marginBottom: 18,
-              textAlign: 'center'
-            }}
-          >
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div className="field">
-            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-soft, #94a3b8)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Username
-            </label>
-            <input
-              type="text"
-              autoFocus
-              required
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="Enter your username"
+            <div
+              className="auth-domain-icon-bubble"
               style={{
-                width: '100%',
-                padding: '11px 14px',
-                borderRadius: 8,
-                background: 'rgba(15, 23, 42, 0.6)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                color: '#fff',
-                fontSize: 14,
-                outline: 'none',
-                boxSizing: 'border-box'
+                width: 48,
+                height: 48,
+                borderRadius: 14,
+                background: 'rgba(139, 92, 246, 0.12)',
+                border: '1px solid rgba(139, 92, 246, 0.25)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 22,
+                boxShadow: '0 4px 14px rgba(139, 92, 246, 0.15)'
               }}
-            />
+            >
+              🎯
+            </div>
           </div>
 
-          <div className="field">
-            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-soft, #94a3b8)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Password
-            </label>
-            <input
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••••••"
-              style={{
-                width: '100%',
-                padding: '11px 14px',
-                borderRadius: 8,
-                background: 'rgba(15, 23, 42, 0.6)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                color: '#fff',
-                fontSize: 14,
-                outline: 'none',
-                boxSizing: 'border-box'
-              }}
-            />
-          </div>
+          {/* Authentication Form with Sanctuary Glass Inputs */}
+          <form onSubmit={handleSubmit} className="auth-card-form" style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+            <div className="auth-field-group">
+              <label className="auth-field-label">Username</label>
+              <div className="auth-input-wrapper">
+                <input
+                  type="text"
+                  autoFocus
+                  required
+                  placeholder="Enter username"
+                  className="auth-glass-input"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                />
+              </div>
+            </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              marginTop: 8,
-              width: '100%',
-              padding: '12px',
-              borderRadius: 8,
-              background: 'linear-gradient(135deg, #7c3aed, #4f46e5)',
-              border: 'none',
-              color: '#fff',
-              fontWeight: 600,
-              fontSize: 14,
-              cursor: loading ? 'not-allowed' : 'pointer',
-              opacity: loading ? 0.7 : 1,
-              transition: 'opacity 0.2s',
-              boxShadow: '0 4px 14px rgba(124, 58, 237, 0.4)'
-            }}
-          >
-            {loading ? 'Authenticating…' : 'Unlock Workspace →'}
-          </button>
-        </form>
+            <div className="auth-field-group">
+              <div className="auth-label-row">
+                <label className="auth-field-label">Password</label>
+                <button
+                  type="button"
+                  className="auth-show-pass-btn"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                >
+                  {showPassword ? 'Hide' : 'Show'}
+                </button>
+              </div>
+              <div className="auth-input-wrapper">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  placeholder="Enter password"
+                  className="auth-glass-input"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </div>
+            </div>
 
-        <div style={{ marginTop: 24, textAlign: 'center', fontSize: 11.5, color: '#64748b' }}>
-          Configured with automated 12-hour background feeds & verified career scoring.
+            {error && (
+              <div className="auth-error-banner">
+                <span className="error-icon">⚠️</span>
+                <span>{error}</span>
+              </div>
+            )}
+
+            <button
+              type="submit"
+              className="sanctuary-enter-btn auth-submit-btn"
+              disabled={loading}
+              style={{ marginTop: 8 }}
+            >
+              <span>{loading ? 'Authenticating…' : 'Unlock Workspace'}</span>
+              <span className="btn-arrow">→</span>
+            </button>
+          </form>
         </div>
       </div>
     </div>

@@ -11,7 +11,7 @@
  * - Dynamic scoring against user profile via jobhuntScoring.
  */
 
-const mysql = require('mysql2/promise');
+const defaultPool = require('../db/db');
 require('dotenv').config();
 
 const { computeOpportunityScore } = require('../services/jobhuntScoring');
@@ -1193,13 +1193,7 @@ const VERIFIED_ACTIVE_OPPORTUNITIES = [
 ];
 
 async function seedTierListCompanies(targetPool) {
-  const pool = targetPool || mysql.createPool({
-    host: process.env.DB_HOST || 'db',
-    port: Number(process.env.DB_PORT || 3306),
-    user: process.env.DB_USER || 'money_user',
-    password: process.env.DB_PASSWORD || 'myroot',
-    database: process.env.DB_NAME || 'money_tracker'
-  });
+  const pool = targetPool || defaultPool;
 
   console.log(`Starting Tier-List & User-Curated companies ingestion...`);
 
@@ -1207,7 +1201,7 @@ async function seedTierListCompanies(targetPool) {
   const [[profile]] = await pool.query('SELECT * FROM jobhunt_profile LIMIT 1');
   if (!profile) {
     console.error('No career profile found in jobhunt_profile. Aborting.');
-    if (!targetPool) await pool.end();
+    if (!targetPool && require.main === module) await pool.end();
     return;
   }
 
@@ -1339,7 +1333,7 @@ async function seedTierListCompanies(targetPool) {
   await runOpportunitiesLifecycle(pool);
 
   console.log(`Sync complete! All companies & verified roles active.`);
-  if (!targetPool) await pool.end();
+  if (!targetPool && require.main === module) await pool.end();
 }
 
 if (require.main === module) {

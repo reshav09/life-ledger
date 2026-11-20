@@ -442,10 +442,16 @@ Spend 8-10 weeks embedded in an engineering team solving authentic engineering c
   }
 
   console.log("All NatWest Group records added successfully!");
-  process.exit(0);
+  return true;
 }
 
-addNatWest().catch(err => {
-  console.error("Error adding NatWest:", err);
-  process.exit(1);
-});
+if (require.main === module) {
+  addNatWest()
+    .then(() => process.exit(0))
+    .catch(err => {
+      console.error("Error adding NatWest:", err);
+      process.exit(1);
+    });
+}
+
+module.exports = { addNatWest };

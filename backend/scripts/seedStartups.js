@@ -436,10 +436,16 @@ async function seed() {
   }
 
   console.log(`[SeedStartups] Completed! Inserted: ${inserted}, Updated: ${updated}`);
-  process.exit(0);
+  return { inserted, updated };
 }
 
-seed().catch(err => {
-  console.error('[SeedStartups] Fatal error:', err);
-  process.exit(1);
-});
+if (require.main === module) {
+  seed()
+    .then(() => process.exit(0))
+    .catch(err => {
+      console.error('[SeedStartups] Fatal error:', err);
+      process.exit(1);
+    });
+}
+
+module.exports = { seed, STARTUPS };

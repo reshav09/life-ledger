@@ -13,7 +13,7 @@
  * Automatically verifies active status, runs lifecycle maintenance, and scores against the user profile.
  */
 
-const mysql = require('mysql2/promise');
+const defaultPool = require('../db/db');
 require('dotenv').config();
 
 const { computeOpportunityScore } = require('../services/jobhuntScoring');
@@ -125,12 +125,7 @@ const VERIFIED_ACTIVE_OPPORTUNITIES = [
 ];
 
 async function seedOpportunities(targetPool) {
-  const pool = targetPool || mysql.createPool({
-    host: process.env.DB_HOST || 'db',
-    user: process.env.DB_USER || 'money_user',
-    password: process.env.DB_PASSWORD || 'myroot',
-    database: process.env.DB_NAME || 'money_tracker'
-  });
+  const pool = targetPool || defaultPool;
 
   console.log(`Starting verified recruitment opportunities sync...`);
 
@@ -362,7 +357,7 @@ async function seedOpportunities(targetPool) {
     console.log(`    Apply: ${o.apply_url}`);
   });
 
-  if (!targetPool) {
+  if (!targetPool && require.main === module) {
     await pool.end();
   }
 }

@@ -4,7 +4,7 @@
  * scientific organizations, and regulatory bodies where Engineer/Officer CTC >= 15 LPA.
  */
 
-const mysql = require('mysql2/promise');
+const defaultPool = require('../db/db');
 require('dotenv').config();
 
 const ORG_REGISTRY = [
@@ -953,13 +953,8 @@ const ORG_REGISTRY = [
   }
 ];
 
-async function seedOrganizations() {
-  const pool = mysql.createPool({
-    host: process.env.DB_HOST || 'db',
-    user: process.env.DB_USER || 'money_user',
-    password: process.env.DB_PASSWORD || 'myroot',
-    database: process.env.DB_NAME || 'money_tracker'
-  });
+async function seedOrganizations(targetPool) {
+  const pool = targetPool || defaultPool;
 
   console.log(`Starting PSU & Premier Org Registry population (${ORG_REGISTRY.length} organizations)...`);
 
@@ -1037,7 +1032,7 @@ async function seedOrganizations() {
   console.log(`- Updated: ${updatedCount}`);
   console.log(`- Total Active Organizations: ${activeCount}`);
   console.log(`\nSectors Breakdown:`);
-  if (!targetPool) {
+  if (!targetPool && require.main === module) {
     await pool.end();
   }
 }

@@ -473,10 +473,16 @@ async function seed() {
   }
 
   console.log(`[SeedStartupOpps] Done! Processed ${upserted} opportunities.`);
-  process.exit(0);
+  return { upserted };
 }
 
-seed().catch(err => {
-  console.error('[SeedStartupOpps] Fatal error:', err);
-  process.exit(1);
-});
+if (require.main === module) {
+  seed()
+    .then(() => process.exit(0))
+    .catch(err => {
+      console.error('[SeedStartupOpps] Fatal error:', err);
+      process.exit(1);
+    });
+}
+
+module.exports = { seed, STARTUP_OPPORTUNITIES };
