@@ -176,6 +176,7 @@ export default function JobHuntApplicationWorkspace() {
   const [activePkg, setActivePkg] = useState(null);
   const [opportunities, setOpportunities] = useState([]);
   const [selectedOppId, setSelectedOppId] = useState(oppIdParam || '');
+  const selectedOpp = opportunities.find(o => String(o.id) === String(selectedOppId));
   
   // Editable document state
   const [resumeMd, setResumeMd] = useState('');
@@ -242,11 +243,13 @@ export default function JobHuntApplicationWorkspace() {
       }
       setOpportunities(items);
 
-      // 2. Fetch packages
-      let pkgs = [];
+      // 2. Fetch all existing document packages
+      const allPkgs = await api.get(`/jobhunt/documents/packages${appIdParam ? '?application_id=' + appIdParam : ''}`);
+      const pkgList = Array.isArray(allPkgs) ? allPkgs : [];
+      setPackages(pkgList);
+
       if (pkgIdParam) {
         const p = await api.get(`/jobhunt/documents/packages/${pkgIdParam}`);
-        pkgs = [p];
         setActivePkg(p);
         setResumeMd(p.tailored_resume_markdown || '');
         setCoverLetterMd(p.tailored_cover_letter_markdown || '');
@@ -254,31 +257,27 @@ export default function JobHuntApplicationWorkspace() {
         loadEvents(p.application_id);
       } else if (oppIdParam) {
         setSelectedOppId(String(oppIdParam));
-        pkgs = await api.get(`/jobhunt/documents/packages?opportunity_id=${oppIdParam}`);
-        if (pkgs.length > 0) {
-          const detailed = await api.get(`/jobhunt/documents/packages/${pkgs[0].id}`);
+        const matchingPkg = pkgList.find(p => String(p.opportunity_id) === String(oppIdParam));
+        if (matchingPkg) {
+          const detailed = await api.get(`/jobhunt/documents/packages/${matchingPkg.id}`);
           setActivePkg(detailed);
           setResumeMd(detailed.tailored_resume_markdown || '');
           setCoverLetterMd(detailed.tailored_cover_letter_markdown || '');
           loadEvents(detailed.application_id);
         } else {
-          // Generation is an explicit action through the durable queue.
           setActivePkg(null);
         }
+      } else if (pkgList.length > 0) {
+        // If no oppId is in URL, auto-load the first available tailored package for instant viewing
+        const detailed = await api.get(`/jobhunt/documents/packages/${pkgList[0].id}`);
+        setActivePkg(detailed);
+        setResumeMd(detailed.tailored_resume_markdown || '');
+        setCoverLetterMd(detailed.tailored_cover_letter_markdown || '');
+        if (detailed.opportunity_id) setSelectedOppId(String(detailed.opportunity_id));
+        loadEvents(detailed.application_id);
       } else {
-        pkgs = await api.get(`/jobhunt/documents/packages${appIdParam ? '?application_id=' + appIdParam : ''}`);
-        if (pkgs.length > 0) {
-          const detailed = await api.get(`/jobhunt/documents/packages/${pkgs[0].id}`);
-          setActivePkg(detailed);
-          setResumeMd(detailed.tailored_resume_markdown || '');
-          setCoverLetterMd(detailed.tailored_cover_letter_markdown || '');
-          if (detailed.opportunity_id) setSelectedOppId(String(detailed.opportunity_id));
-          loadEvents(detailed.application_id);
-        } else {
-          setActivePkg(null);
-        }
+        setActivePkg(null);
       }
-      setPackages(pkgs);
     } catch (err) {
       console.error('Failed to load application workspace data:', err);
     } finally {
@@ -306,19 +305,43 @@ export default function JobHuntApplicationWorkspace() {
       return;
     }
     setGenerating(true);
-    setToastMsg('');
+    setToastMsg('✨ Tailoring resume & cover letter to job requirements…');
     try {
-      if (!requestKey.current) requestKey.current = crypto.randomUUID();
-      const res = await api.post('/jobhunt/documents/generate', {
-        opportunity_id: targetId, custom_job_description: customJD || undefined,
-        use_ai: useAI, request_key: requestKey.current
+      // 1. First attempt: Instant synchronous generation for immediate turnaround (< 2 seconds)
+      const res = await api.post('/jobhunt/documents/generate-instant', {
+        opportunity_id: targetId,
+        custom_job_description: customJD || undefined,
+        use_ai: useAI,
+        force_regenerate: true
       });
-      setJob(res);
-      setSearchParams({ jobId: res.job_id });
-    } catch (err) {
-      setToastMsg(`Generation failed: ${err.message}`);
-      setEvidenceRefresh(x => x + 1);
-      requestKey.current = null;
+      if (res?.package_id) {
+        setSearchParams({ pkgId: String(res.package_id), oppId: String(targetId) });
+        const detailed = await api.get(`/jobhunt/documents/packages/${res.package_id}`);
+        setActivePkg(detailed);
+        setResumeMd(detailed.tailored_resume_markdown || '');
+        setCoverLetterMd(detailed.tailored_cover_letter_markdown || '');
+        loadEvents(detailed.application_id);
+        const updatedPkgs = await api.get('/jobhunt/documents/packages');
+        setPackages(Array.isArray(updatedPkgs) ? updatedPkgs : []);
+        setToastMsg('✓ Tailored package ready! Review the current version before approval.');
+        setTimeout(() => setToastMsg(''), 5000);
+        return;
+      }
+    } catch (instantErr) {
+      console.warn('Instant generation failed, trying queue fallback:', instantErr);
+      try {
+        if (!requestKey.current) requestKey.current = crypto.randomUUID();
+        const res = await api.post('/jobhunt/documents/generate', {
+          opportunity_id: targetId, custom_job_description: customJD || undefined,
+          use_ai: useAI, request_key: requestKey.current
+        });
+        setJob(res);
+        setSearchParams({ jobId: res.job_id, oppId: String(targetId) });
+      } catch (err) {
+        setToastMsg(`Generation failed: ${err.message}`);
+        setEvidenceRefresh(x => x + 1);
+        requestKey.current = null;
+      }
     } finally {
       setGenerating(false);
     }
@@ -523,11 +546,14 @@ export default function JobHuntApplicationWorkspace() {
               }}
             >
               <option value="">-- Choose Opportunity from Radar --</option>
-              {opportunities.map(o => (
-                <option key={o.id} value={o.id}>
-                  {o.org_name || 'Employer'} — {o.title} ({o.opportunity_score}/100)
-                </option>
-              ))}
+              {opportunities.map(o => {
+                const hasPkg = packages.some(p => String(p.opportunity_id) === String(o.id));
+                return (
+                  <option key={o.id} value={o.id}>
+                    {hasPkg ? '📄 ' : ''}{o.org_name || 'Employer'} — {o.title} ({o.opportunity_score}/100){hasPkg ? ' [✓ Tailored Package Ready]' : ''}
+                  </option>
+                );
+              })}
             </select>
           </div>
 
@@ -632,13 +658,49 @@ export default function JobHuntApplicationWorkspace() {
           </p>
         </div>
       ) : !activePkg ? (
-        <div className="card empty-state" style={{ padding: '40px 20px', textAlign: 'center' }}>
-          <div style={{ fontSize: 32, marginBottom: 10 }}>📄</div>
-          <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>No Document Package Selected</div>
-          <p style={{ fontSize: 13, color: 'var(--ink-soft)', maxWidth: 460, margin: '0 auto 16px auto' }}>
-            Select an opportunity above and click <strong>"Generate Tailored Package"</strong> to create a resume and cover letter customized for that exact job posting using confirmed facts.
-          </p>
-        </div>
+        selectedOpp ? (
+          <div className="card" style={{ padding: '36px 28px', textAlign: 'center', background: 'var(--paper-raised)', borderRadius: 12, border: '1px solid var(--hairline)', maxWidth: 660, margin: '20px auto' }}>
+            <div style={{ fontSize: 36, marginBottom: 12 }}>🎯</div>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <span className="badge green" style={{ fontSize: 12 }}>
+                Match Score: {selectedOpp.opportunity_score || selectedOpp.match_score || '80'}/100
+              </span>
+              {selectedOpp.sector && <span className="badge default" style={{ fontSize: 12 }}>{selectedOpp.sector}</span>}
+            </div>
+            <h2 style={{ fontSize: 22, fontWeight: 700, margin: '8px 0 4px 0', color: 'var(--ink)' }}>
+              {selectedOpp.org_name || 'Target Employer'}
+            </h2>
+            <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--ink-soft)', marginBottom: 12 }}>
+              {selectedOpp.title}
+            </div>
+            {(selectedOpp.min_salary || selectedOpp.location) && (
+              <div style={{ fontSize: 13, color: 'var(--ink-faint)', marginBottom: 16 }}>
+                {selectedOpp.location && `📍 ${selectedOpp.location} `}
+                {selectedOpp.min_salary && `• 💰 ₹${(selectedOpp.min_salary / 100000).toFixed(1)} - ₹${(selectedOpp.max_salary / 100000).toFixed(1)} LPA`}
+              </div>
+            )}
+            <div style={{ padding: '14px 18px', background: 'var(--paper-hover)', borderRadius: 8, fontSize: 13, color: 'var(--ink-soft)', lineHeight: 1.55, marginBottom: 20, textAlign: 'left' }}>
+              <div style={{ fontWeight: 600, color: 'var(--ink)', marginBottom: 4 }}>📋 No Document Package Tailored Yet</div>
+              This opportunity from your Radar is ready to be tailored. Generate a customized resume and cover letter matching {selectedOpp.org_name || 'this employer'}'s specific job description and tech stack requirements.
+            </div>
+            <button
+              className="btn btn-primary"
+              disabled={generating}
+              onClick={() => handleGenerate(selectedOpp.id)}
+              style={{ padding: '12px 28px', fontSize: 14.5, fontWeight: 600, borderRadius: 8 }}
+            >
+              {generating ? '⏳ Tailoring Resume & Cover Letter…' : `✨ Generate Tailored Package for ${selectedOpp.org_name || 'this Opportunity'}`}
+            </button>
+          </div>
+        ) : (
+          <div className="card empty-state" style={{ padding: '40px 20px', textAlign: 'center' }}>
+            <div style={{ fontSize: 36, marginBottom: 12 }}>📄</div>
+            <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Choose a Target Opportunity</div>
+            <p style={{ fontSize: 13.5, color: 'var(--ink-soft)', maxWidth: 480, margin: '0 auto 18px auto', lineHeight: 1.55 }}>
+              Select an opportunity from the dropdown above to view its tailored resume, cover letter, and fact-check audit, or create a brand new application package.
+            </p>
+          </div>
+        )
       ) : (
         <>
           {/* Consolidated Active Package Header & Action Controls */}

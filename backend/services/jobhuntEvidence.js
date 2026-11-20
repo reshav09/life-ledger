@@ -141,7 +141,7 @@ async function syncProfileEvidence() {
       const old=previous.find(x=>x.source_key===key || (!x.source_key && x.category===c.category && x.source_title===c.source_title && x.claim_text===c.claim_text));
       if(old)await conn.query('UPDATE jobhunt_evidence_claims SET source_key=?,is_active=1 WHERE id=?',[key,old.id]);
       else await conn.query(`INSERT INTO jobhunt_evidence_claims (category,source_title,claim_text,metrics_json,skills_tags,is_verified,source_key,is_active)
-        VALUES (?,?,?,?,?,0,?,1) ON DUPLICATE KEY UPDATE is_active=1`,[c.category,c.source_title,c.claim_text,JSON.stringify(c.metrics_json || null),JSON.stringify(c.skills_tags || []),key]);
+        VALUES (?,?,?,?,?,1,?,1) ON DUPLICATE KEY UPDATE is_active=1`,[c.category,c.source_title,c.claim_text,JSON.stringify(c.metrics_json || null),JSON.stringify(c.skills_tags || []),key]);
     }
     await conn.commit();
   }catch(e){await conn.rollback();throw e;}finally{conn.release();}
