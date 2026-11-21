@@ -671,8 +671,66 @@ Tag: 16 bits | Index: 10 bits | Offset: 6 bits.`,
   }
 ];
 
+let isQuestionBankSeeded = false;
+
+function matchesVariant(normalized, v) {
+  const vLower = v.toLowerCase();
+  if (vLower.length <= 4) {
+    return new RegExp('(\\b|_)' + vLower.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&') + '(\\b|_)', 'i').test(normalized);
+  }
+  return normalized.includes(vLower);
+}
+
+function resolveCompanyTags(companyName) {
+  if (!companyName || companyName === 'all') return [];
+  const normalized = companyName.toLowerCase().trim();
+  const tags = new Set([companyName]);
+
+  const ALIAS_MAP = {
+    'zoho': ['Zoho', 'Zoho Corporation'],
+    'tcs': ['TCS', 'Tata Consultancy Services'],
+    'infosys': ['Infosys'],
+    'bhel': ['BHEL', 'Bharat Heavy Electricals Limited'],
+    'bel': ['BEL', 'Bharat Electronics Limited'],
+    'c-dac': ['C-DAC', 'CDAC', 'Centre for Development of Advanced Computing'],
+    'nic': ['NIC', 'National Informatics Centre'],
+    'drdo': ['DRDO', 'Defence Research and Development Organisation'],
+    'isro': ['ISRO', 'Indian Space Research Organisation'],
+    'ecil': ['ECIL', 'Electronics Corporation of India Limited'],
+    'barc': ['BARC', 'Bhabha Atomic Research Centre'],
+    'map_it': ['MAP_IT', 'MAPIT', 'Madhya Pradesh Agency for Promotion of IT'],
+    'csir': ['CSIR', 'AMPRI', 'CSIR-AMPRI', 'CSIR - Advanced Materials and Processes Research Institute'],
+    'persistent': ['Persistent', 'Persistent Systems'],
+    'razorpay': ['Razorpay'],
+    'swiggy': ['Swiggy'],
+    'phonepe': ['PhonePe'],
+    'zerodha': ['Zerodha'],
+    'ather': ['Ather', 'Ather Energy'],
+    'porter': ['Porter'],
+    'postman': ['Postman'],
+    'browserstack': ['BrowserStack'],
+    'meesho': ['Meesho'],
+    'zepto': ['Zepto'],
+    'groww': ['Groww'],
+    'cred': ['CRED'],
+    'urban company': ['Urban Company'],
+    'natwest': ['NatWest', 'NatWest Group'],
+    'power grid': ['Power Grid', 'PGCIL', 'Power Grid Corporation of India Limited'],
+    'coal india': ['Coal India', 'CIL', 'Coal India Limited']
+  };
+
+  for (const [key, variants] of Object.entries(ALIAS_MAP)) {
+    if (matchesVariant(normalized, key) || variants.some(v => matchesVariant(normalized, v))) {
+      variants.forEach(v => tags.add(v));
+    }
+  }
+
+  return Array.from(tags);
+}
+
 // Ensure question bank is seeded with all real questions (Non-destructive incremental ingestion)
 async function ensureQuestionBankSeeded() {
+  if (isQuestionBankSeeded) return;
   try {
     let inserted = 0;
     for (const q of SEED_QUESTIONS) {
@@ -704,6 +762,7 @@ async function ensureQuestionBankSeeded() {
     if (inserted > 0) {
       console.log(`[QuestionBank] Ingested ${inserted} new technical questions into MariaDB.`);
     }
+    isQuestionBankSeeded = true;
   } catch (err) {
     console.warn('[QuestionBank] Warning during question bank seeding:', err.message);
   }
@@ -726,8 +785,9 @@ async function getQuestions({ category, company, topic, difficulty, search, isSo
   }
 
   if (company && company !== 'all' && category !== 'quant_systems') {
-    query += ' AND (company_tag = ? OR company_tag = "General")';
-    params.push(company);
+    const candidateTags = resolveCompanyTags(company);
+    query += ' AND (company_tag IN (?) OR company_tag = "General")';
+    params.push(candidateTags);
   }
 
   if (topic && topic !== 'all') {
@@ -750,7 +810,7 @@ async function getQuestions({ category, company, topic, difficulty, search, isSo
     params.push(`%${search}%`, `%${search}%`, `%${search}%`);
   }
 
-  query += ' ORDER BY frequency_pct DESC, id ASC LIMIT ? OFFSET ?';
+  query += ' ORDER BY CASE WHEN company_tag != "General" THEN 0 ELSE 1 END, frequency_pct DESC, id ASC LIMIT ? OFFSET ?';
   params.push(parseInt(limit, 10), parseInt(offset, 10));
 
   const [rows] = await pool.query(query, params);

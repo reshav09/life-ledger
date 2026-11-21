@@ -805,8 +805,11 @@ const PRE_SEEDED_PLANS = [
   }
 ];
 
+let isPrepPlansSeeded = false;
+
 // Initialize and seed verified plans if missing
 async function ensurePreSeededPlans() {
+  if (isPrepPlansSeeded) return;
   try {
     for (const plan of PRE_SEEDED_PLANS) {
       // Check if plan already exists for this org_name and role_title
@@ -845,6 +848,7 @@ async function ensurePreSeededPlans() {
         );
       }
     }
+    isPrepPlansSeeded = true;
   } catch (err) {
     console.warn('[PrepIntelligence] Warning seeding pre-seeded plans:', err.message);
   }
@@ -880,7 +884,22 @@ async function getPrepPlans({ search, roleCategory, confidence, orgId }) {
     params.push(`%${search}%`, `%${search}%`);
   }
 
-  query += ' ORDER BY p.id DESC';
+  // Prioritize target Indian PSUs, Govt, Startups, and Tech Giants, and demote Quant/HFT
+  query += ` ORDER BY 
+    CASE 
+      WHEN p.org_name IN (
+        'Bharat Heavy Electricals Limited', 'Centre for Development of Advanced Computing', 
+        'Bharat Electronics Limited', 'National Informatics Centre', 
+        'Madhya Pradesh Agency for Promotion of IT', 'CSIR - Advanced Materials and Processes Research Institute', 
+        'Defence Research and Development Organisation', 'Indian Space Research Organisation', 
+        'Electronics Corporation of India Limited', 'Coal India Limited', 'Power Grid Corporation of India Limited'
+      ) THEN 1
+      WHEN p.org_name IN ('Swiggy', 'Razorpay', 'PhonePe', 'Zerodha', 'Ather Energy', 'Porter', 'Postman', 'BrowserStack', 'Meesho', 'Zepto', 'Urban Company', 'Groww', 'CRED') THEN 2
+      WHEN p.org_name IN ('Tata Consultancy Services', 'Infosys', 'Zoho Corporation', 'Persistent Systems', 'L&T Technology Services', 'Cognizant', 'Wipro', 'NatWest Group') THEN 3
+      WHEN p.process_type = 'quant_hft' THEN 99
+      ELSE 10
+    END ASC,
+    p.id DESC`;
   const [rows] = await pool.query(query, params);
 
   return rows.map(r => ({
