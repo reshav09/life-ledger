@@ -188,7 +188,7 @@ router.get('/dashboard', async (req, res) => {
     const [countryRows] = await pool.query(
       `SELECT DISTINCT op.country
        FROM jobhunt_opportunities op
-       WHERE op.is_archived = 0 AND op.country IS NOT NULL AND op.country != ''
+       WHERE ${verifiedCondition} AND op.country IS NOT NULL AND op.country != ''
        ORDER BY op.country ASC`
     );
 
@@ -219,8 +219,8 @@ router.get('/dashboard', async (req, res) => {
          (SELECT a.id FROM applications a WHERE (a.opportunity_id = op.id OR (a.role = op.title AND a.name = org.name)) AND a.status IN ('applied', 'interview', 'offer', 'rejected', 'cleared') ORDER BY a.id DESC LIMIT 1) AS application_id
        FROM jobhunt_opportunities op
        LEFT JOIN jobhunt_organizations org ON op.org_id = org.id
-       WHERE op.is_archived = 0
-       ORDER BY op.discovered_at DESC
+       WHERE ${verifiedCondition}
+       ORDER BY op.opportunity_score DESC, op.discovered_at DESC
        LIMIT 5`
     );
 

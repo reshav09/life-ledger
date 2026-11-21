@@ -35,12 +35,24 @@ router.get('/', async (req, res) => {
     if (visa_sponsored != null && visa_sponsored !== '') { conditions.push('(o.visa_sponsored = ? OR EXISTS (SELECT 1 FROM jobhunt_opportunities op WHERE op.org_id = o.id AND op.visa_sponsored = ? AND op.is_archived = 0))'); params.push(Number(visa_sponsored), Number(visa_sponsored)); }
     if (sector) { conditions.push('o.sector = ?'); params.push(sector); }
     if (org_type) { conditions.push('o.org_type = ?'); params.push(org_type); }
-    if (is_active != null) { conditions.push('o.is_active = ?'); params.push(is_active); }
+    if (is_active != null) {
+      conditions.push('o.is_active = ?');
+      params.push(is_active === 'true' || is_active === '1' || is_active === 1 ? 1 : 0);
+    } else {
+      conditions.push('o.is_active = 1');
+    }
     if (parent_id) { conditions.push('o.parent_org_id = ?'); params.push(parent_id); }
     if (q) { conditions.push('(o.name LIKE ? OR o.short_name LIKE ?)'); params.push(`%${q}%`, `%${q}%`); }
 
     if (conditions.length) sql += ' WHERE ' + conditions.join(' AND ');
-    sql += ' ORDER BY o.sector, o.name ASC';
+    sql += ` ORDER BY 
+      CASE 
+        WHEN o.category_group IN ('psu', 'govt', 'research') THEN 1
+        WHEN o.category_group IN ('startup') THEN 2
+        WHEN o.category_group IN ('private_in', 'service_tech') THEN 3
+        ELSE 10
+      END ASC,
+      o.name ASC`;
 
     const [rows] = await pool.query(sql, params);
     res.json(rows);

@@ -424,7 +424,7 @@ export default function JobHuntSettings() {
               }}>
                 <span>✨</span>
                 <span>
-                  <strong>AI Ingestion & PDF Parser</strong> uses your personal saved Gemini API key (<Link to="/ai" style={{ color: '#7c3aed', fontWeight: 600, textDecoration: 'underline' }}>AI Settings</Link>).
+                  <strong>AI Ingestion & PDF Parser</strong> is active with secure server-side Gemini & DeepSeek integration.
                 </span>
               </div>
 
