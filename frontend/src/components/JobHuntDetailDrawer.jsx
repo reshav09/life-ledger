@@ -99,33 +99,26 @@ export default function JobHuntDetailDrawer({
   const normCareers = normalizeUrl(careersLink);
   const hasSeparateCareers = normCareers && normCareers !== normApply;
 
+  const isRemote = (opp.location?.toLowerCase().includes('remote') || opp.country?.toLowerCase().includes('remote') || opp.category_group === 'private_global');
   const regionEmoji =
     opp.category_group === 'startup' ? '🚀' :
-    opp.category_group === 'research_internship' ? '🔬' :
-    opp.category_group === 'quant_hft' ? '⚡' :
-    opp.category_group === 'private_eu' ? '🇪🇺' :
-    opp.category_group === 'private_sg' ? '🇸🇬' :
-    opp.category_group === 'private_in' ? '🇮🇳' :
-    opp.category_group === 'private_global' ? '🌐' :
+    (opp.category_group === 'research_internship' || opp.category_group === 'research') ? '🔬' :
     opp.category_group === 'psu' ? '🏭' :
-    opp.category_group === 'govt' ? '🏛️' : '📍';
+    opp.category_group === 'govt' ? '🏛️' :
+    isRemote ? '💻' : '🇮🇳';
 
   const visaLabel =
     opp.category_group === 'startup'
-      ? '🚀 High-Growth Startup / Product Tech (High Base + ESOPs)'
-      : opp.category_group === 'research_internship'
-      ? '🔬 Fully Funded International Research Fellowship (Stipend + Housing + Airfare + Visa)'
-      : opp.category_group === 'quant_hft'
-      ? (opp.country === 'Netherlands' ? '🇳🇱 Netherlands Kennismigrant (High-Skill Migrant) Sponsored' : '⚡ Prop Trading / High-Frequency Systems')
-      : opp.visa_sponsored === 1
-      ? (opp.category_group === 'private_eu'
-          ? '🇪🇺 EU Blue Card + Relocation Assistance'
-          : opp.category_group === 'private_sg'
-          ? '🇸🇬 Singapore Employment Pass (EP) Sponsored'
-          : '✈️ Visa Sponsorship Confirmed')
-      : opp.category_group === 'private_global'
-      ? '🌐 100% Global Remote (Worldwide)'
-      : '🇮🇳 Domestic / Work Authorization Required';
+      ? '🚀 Indian Tech Startup (High Growth)'
+      : (opp.category_group === 'research_internship' || opp.category_group === 'research')
+      ? '🔬 Research Lab & Fellowship'
+      : opp.category_group === 'psu'
+      ? '🏭 Public Sector Undertaking (PSU / CPSE)'
+      : opp.category_group === 'govt'
+      ? '🏛️ Government & Strategic Tech'
+      : isRemote
+      ? '💻 Remote Role (India / Global Permitted)'
+      : '🇮🇳 Indian Office / Tech';
 
   return createPortal(
     <div className="jh-drawer-overlay" style={{ zIndex: 99999 }} onClick={onClose}>
@@ -328,7 +321,7 @@ export default function JobHuntDetailDrawer({
             </div>
 
             <div className="jh-drawer-card">
-              <div className="jh-drawer-label">🌍 Region & Visa Sponsorship</div>
+              <div className="jh-drawer-label">🏢 Organization Sector & Work Model</div>
               <div className="jh-drawer-val" style={{ fontSize: 12.5 }}>
                 {visaLabel}
               </div>
@@ -421,21 +414,17 @@ export default function JobHuntDetailDrawer({
                 <span>
                   <strong>High-Growth Startup / Product Engineering Focus:</strong> Rapid execution, high ownership, REST/gRPC API architecture, clean microservices (Node/Go/Python/Java), and product intuition. Emphasize ability to ship production features fast with minimal guidance, debugging live systems, and your Cloud/DevOps & FinOps skills.
                 </span>
-              ) : opp.category_group === 'quant_hft' ? (
+              ) : opp.category_group === 'govt' ? (
                 <span>
-                  <strong>High-Frequency Trading & Market Making Focus:</strong> Master modern C++ (C++17/20), cache alignment, lock-free queues, low-latency Linux networking (socket options, epoll), and algorithmic problem solving. Emphasize systems-level performance tuning.
+                  <strong>Government &amp; e-Governance Tech Focus:</strong> Emphasize reliability, public digital infrastructure, security compliance, clean code standards, and relational databases. Be prepared for technical interviews on system availability and data governance.
                 </span>
-              ) : opp.category_group === 'private_sg' ? (
+              ) : opp.category_group === 'private_in' || opp.category_group === 'service_tech' ? (
                 <span>
-                  <strong>Singapore Tech Giant Focus:</strong> Emphasize high-scale distributed systems, microservices in Go/Java, Kafka streaming, and multi-region fault tolerance. Highlight your hands-on FinOps/Cloud infrastructure experience. Full Singapore EP visa support provided.
+                  <strong>Indian Tech &amp; Engineering Focus:</strong> Focus on robust software engineering, scalable REST/gRPC backend services, database indexing, and cloud infrastructure. Leverage your 1.5 yrs FinOps/Cloud/DevOps experience in Python/AWS/Kubernetes as a key differentiator.
                 </span>
-              ) : opp.category_group === 'private_eu' ? (
+              ) : (opp.location?.toLowerCase().includes('remote') || opp.country?.toLowerCase().includes('remote') || opp.category_group === 'private_global') ? (
                 <span>
-                  <strong>European Privacy & Cloud Systems Focus:</strong> Focus on container orchestration, Kubernetes, CI/CD automation, and Linux internals. Tuta and Proton emphasize zero-knowledge architecture and privacy compliance. EU Blue Card sponsorship supported.
-                </span>
-              ) : opp.category_group === 'private_global' ? (
-                <span>
-                  <strong>Global Remote Platform Focus:</strong> Practice asynchronous communication, writing RFC design docs, building resilient cloud architectures (AWS/GCP), and containerized microservices. Highlight autonomous system ownership.
+                  <strong>Remote Platform Engineering Focus:</strong> Practice asynchronous communication, writing RFC design docs, building resilient cloud architectures (AWS/GCP), and containerized microservices. Highlight autonomous system ownership.
                 </span>
               ) : opp.category_group === 'psu' ? (
                 <span>

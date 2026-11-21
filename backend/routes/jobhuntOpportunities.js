@@ -105,7 +105,9 @@ async function getRadarOpportunities({ filter = 'all', category_group = '', sect
   }
 
   if (category_group) {
-    if (category_group.includes(',')) {
+    if (category_group === 'remote') {
+      whereClauses.push("(op.location LIKE '%Remote%' OR op.location LIKE '%Anywhere%' OR op.country LIKE '%Remote%')");
+    } else if (category_group.includes(',')) {
       const groups = category_group.split(',').map(s => s.trim()).filter(Boolean);
       if (groups.length > 0) {
         whereClauses.push(`op.category_group IN (${groups.map(() => '?').join(',')})`);
@@ -185,6 +187,12 @@ router.get('/dashboard', async (req, res) => {
        WHERE ${verifiedCondition} AND (op.recommendation != 'ignore' OR op.recommendation IS NULL) AND (op.eligibility_pct IS NULL OR op.eligibility_pct > 0)
        GROUP BY op.category_group`
     );
+    const [remoteRow] = await pool.query(
+      `SELECT COUNT(*) AS cnt
+       FROM jobhunt_opportunities op
+       WHERE ${verifiedCondition} AND (op.recommendation != 'ignore' OR op.recommendation IS NULL) AND (op.eligibility_pct IS NULL OR op.eligibility_pct > 0)
+       AND (op.location LIKE '%Remote%' OR op.location LIKE '%Anywhere%' OR op.country LIKE '%Remote%')`
+    );
     const [countryRows] = await pool.query(
       `SELECT DISTINCT op.country
        FROM jobhunt_opportunities op
@@ -199,16 +207,19 @@ router.get('/dashboard', async (req, res) => {
       psu: 0,
       govt: 0,
       private_in: 0,
-      quant_hft: 0,
-      private_eu: 0,
-      private_sg: 0,
-      private_global: 0
+      service_tech: 0,
+      research: 0,
+      remote: remoteRow[0]?.cnt || 0,
+      'research,research_internship': 0,
+      'private_in,service_tech': 0
     };
     catRows.forEach(r => {
-      if (r.category_group && categoryCounts[r.category_group] !== undefined) {
-        categoryCounts[r.category_group] = r.cnt;
+      if (r.category_group) {
+        categoryCounts[r.category_group] = (categoryCounts[r.category_group] || 0) + r.cnt;
       }
     });
+    categoryCounts['research,research_internship'] = (categoryCounts['research'] || 0) + (categoryCounts['research_internship'] || 0);
+    categoryCounts['private_in,service_tech'] = (categoryCounts['private_in'] || 0) + (categoryCounts['service_tech'] || 0);
 
     const { filter = 'all', category_group = '', sector = '', limit = 50 } = req.query;
     const { rows: topOpps, total_matches } = await getRadarOpportunities({ filter, category_group, sector, limit });
@@ -279,7 +290,9 @@ router.get('/', async (req, res) => {
     const params = [];
 
     if (category_group) {
-      if (category_group.includes(',')) {
+      if (category_group === 'remote') {
+        conditions.push("(op.location LIKE '%Remote%' OR op.location LIKE '%Anywhere%' OR op.country LIKE '%Remote%')");
+      } else if (category_group.includes(',')) {
         const groups = category_group.split(',').map((s) => s.trim()).filter(Boolean);
         if (groups.length > 0) {
           conditions.push(`op.category_group IN (${groups.map(() => '?').join(',')})`);
@@ -320,10 +333,12 @@ router.get('/', async (req, res) => {
     if (recommendation) {
       conditions.push('op.recommendation = ?');
       params.push(recommendation);
-    } else if (include_ignored !== 'true' && (is_archived === '0' || is_archived == null)) {
-      // By default in Active view, exclude disqualified/ignored/0% eligibility items
+    } else if (include_ignored !== 'true') {
       conditions.push("(op.recommendation IS NULL OR op.recommendation != 'ignore')");
       conditions.push('(op.eligibility_pct IS NULL OR op.eligibility_pct > 0)');
+    }
+
+    if (is_archived === '0' || is_archived == null) {
       // Strictly enforce verified existence: exclude dead links, ghost jobs, and non-existent jobs
       conditions.push('(op.is_verified_active = 1 AND (op.is_active_link != 0 OR op.is_active_link IS NULL))');
       // Exclude foreign visa-sponsored jobs & non-Indian locations without remote

@@ -133,7 +133,7 @@ export default function JobHuntOpportunities() {
   const [selectedOpp, setSelectedOpp] = useState(null);
   const [viewMode, setViewMode] = useState('dense'); // 'dense' | 'cards'
   const [categoryCounts, setCategoryCounts] = useState({
-    all: 0, psu: 0, govt: 0, private_in: 0, quant_hft: 0, private_eu: 0, private_sg: 0, private_global: 0
+    all: 0, psu: 0, govt: 0, private_in: 0, startup: 0, research: 0, research_internship: 0, remote: 0
   });
   const [recFilter, setRecFilter] = useState(searchParams.get('recommendation') || '');
   const [deadlineFilter, setDeadlineFilter] = useState(searchParams.get('deadline') || '');
@@ -403,10 +403,10 @@ export default function JobHuntOpportunities() {
   return (
     <div>
       <div className="page-header">
-        <div className="page-eyebrow">Scored against your profile · Domestic & Global</div>
+        <div className="page-eyebrow">Scored against your profile · Confirmed &gt; ₹5 LPA</div>
         <h1 className="page-title">Opportunities Explorer</h1>
         <p className="page-sub">
-          Ranked opportunities categorized across Indian PSUs, Govt R&D, Domestic Tech & Visa-Sponsored International roles.
+          Curated and verified career opportunities across Indian PSUs, Govt R&amp;D, Tech Startups, and High-Impact Remote Roles (&gt; ₹5 LPA).
         </p>
       </div>
 
@@ -417,6 +417,9 @@ export default function JobHuntOpportunities() {
             const g = opp.category_group || 'other';
             acc[g] = (acc[g] || 0) + 1;
             acc.all = (acc.all || 0) + 1;
+            if (opp.location?.toLowerCase().includes('remote') || opp.country?.toLowerCase().includes('remote') || opp.category_group === 'private_global') {
+              acc.remote = (acc.remote || 0) + 1;
+            }
           }
           return acc;
         }, {});
@@ -435,8 +438,14 @@ export default function JobHuntOpportunities() {
               const isActive = activeCategoryGroup === cg.id;
               const count = cg.id === ''
                 ? (categoryCounts.all || items.length)
+                : cg.id.includes(',')
+                ? cg.id.split(',').reduce((sum, key) => sum + (categoryCounts[key.trim()] || 0), 0)
                 : (categoryCounts[cg.id] || 0);
-              const unread = cg.id === '' ? (unreadCounts.all || 0) : (unreadCounts[cg.id] || 0);
+              const unread = cg.id === ''
+                ? (unreadCounts.all || 0)
+                : cg.id.includes(',')
+                ? cg.id.split(',').reduce((sum, key) => sum + (unreadCounts[key.trim()] || 0), 0)
+                : (unreadCounts[cg.id] || 0);
 
               return (
                 <button
@@ -780,15 +789,12 @@ export default function JobHuntOpportunities() {
               <div className="field">
                 <label>Category Group</label>
                 <select value={form.category_group} onChange={e => setForm({ ...form, category_group: e.target.value })}>
-                  <option value="startup">🚀 High-Growth Startup / Scaleup</option>
-                  <option value="research_internship">🔬 Fully Funded Research Fellowship / Internship</option>
-                  <option value="psu">🏭 PSU</option>
+                  <option value="psu">🏭 PSU (Public Sector)</option>
                   <option value="govt">🏛️ Government & Strategic R&D</option>
-                  <option value="private_in">🇮🇳 Indian Private Tech</option>
-                  <option value="quant_hft">⚡ Quant & HFT Fund</option>
-                  <option value="private_eu">🇪🇺 EU Countries (Visa Sponsored · ≥ €100k)</option>
-                  <option value="private_sg">🇸🇬 Singapore (Visa Sponsored · ≥ S$135k)</option>
-                  <option value="private_global">🌐 Global Remote ($100k+)</option>
+                  <option value="startup">🚀 Indian Tech Startup</option>
+                  <option value="research_internship">🔬 Research Lab / Fellowship</option>
+                  <option value="private_in">🇮🇳 Indian Tech & Services</option>
+                  <option value="private_global">🌐 Remote (Global / Anywhere)</option>
                 </select>
               </div>
               <div className="field">
@@ -870,10 +876,16 @@ export default function JobHuntOpportunities() {
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', margin: 0, fontWeight: 600 }}>
                   <input
                     type="checkbox"
-                    checked={form.visa_sponsored}
-                    onChange={e => setForm({ ...form, visa_sponsored: e.target.checked })}
+                    checked={form.location?.toLowerCase().includes('remote')}
+                    onChange={e => {
+                      const isRemote = e.target.checked;
+                      setForm(prev => ({
+                        ...prev,
+                        location: isRemote ? (prev.location ? `${prev.location} (Remote)` : 'Remote') : prev.location.replace(/\s*\(Remote\)|Remote/g, '').trim()
+                      }));
+                    }}
                   />
-                  <span>✈️ Visa Sponsorship Provided / Relocation Assistance</span>
+                  <span>💻 Remote Work Permitted</span>
                 </label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', margin: 0, fontWeight: 600 }}>
                   <input
@@ -952,27 +964,26 @@ export default function JobHuntOpportunities() {
                 const days = daysUntil(opp.application_deadline);
                 const isApplied = opp.is_applied === 1 || (!!opp.application_status && opp.application_status !== 'planning');
 
+                const isRemote = (opp.location?.toLowerCase().includes('remote') || opp.country?.toLowerCase().includes('remote') || opp.category_group === 'private_global');
                 const regionEmoji =
                   opp.category_group === 'startup' ? '🚀' :
-                  opp.category_group === 'research_internship' ? '🔬' :
-                  opp.category_group === 'quant_hft' ? '⚡' :
-                  opp.category_group === 'private_eu' ? '🇪🇺' :
-                  opp.category_group === 'private_sg' ? '🇸🇬' :
-                  opp.category_group === 'private_in' ? '🇮🇳' :
-                  opp.category_group === 'private_global' ? '🌐' :
+                  (opp.category_group === 'research_internship' || opp.category_group === 'research') ? '🔬' :
                   opp.category_group === 'psu' ? '🏭' :
-                  opp.category_group === 'govt' ? '🏛️' : '📍';
+                  opp.category_group === 'govt' ? '🏛️' :
+                  isRemote ? '💻' : '🇮🇳';
 
                 const visaPillLabel =
                   opp.category_group === 'startup'
                     ? 'Startup'
-                    : opp.category_group === 'research_internship'
-                    ? 'Fellowship'
-                    : opp.category_group === 'quant_hft'
-                    ? (opp.country === 'Netherlands' ? 'NL Quant' : 'Quant / Prop')
-                    : opp.visa_sponsored === 1
-                    ? (opp.category_group === 'private_eu' ? 'EU Visa' : opp.category_group === 'private_sg' ? 'SG Visa' : 'Visa Sp.')
-                    : opp.category_group === 'private_global' ? 'Remote' : 'India';
+                    : (opp.category_group === 'research_internship' || opp.category_group === 'research')
+                    ? 'Research'
+                    : opp.category_group === 'psu'
+                    ? 'PSU'
+                    : opp.category_group === 'govt'
+                    ? 'Govt'
+                    : isRemote
+                    ? 'Remote'
+                    : 'India';
 
                 return (
                   <tr
@@ -1211,9 +1222,9 @@ export default function JobHuntOpportunities() {
                           </span>
                         );
                       })()}
-                      {opp.visa_sponsored === 1 && (
+                      {(opp.location?.toLowerCase().includes('remote') || opp.country?.toLowerCase().includes('remote') || opp.category_group === 'private_global') && (
                         <span className="jh-visa-pill" style={{ fontSize: 10.5 }}>
-                          ✈️ Visa Sponsored
+                          💻 Remote / Anywhere
                         </span>
                       )}
                       {opp.is_active_link === 0 ? (
