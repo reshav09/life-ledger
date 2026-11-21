@@ -265,7 +265,30 @@ export default function JobHuntApplicationWorkspace() {
           setCoverLetterMd(detailed.tailored_cover_letter_markdown || '');
           loadEvents(detailed.application_id);
         } else {
-          setActivePkg(null);
+          // Auto-generate tailored package on demand so candidate never hits an empty state
+          try {
+            setGenerating(true);
+            const gen = await api.post('/jobhunt/documents/generate-instant', {
+              opportunity_id: oppIdParam,
+              force_regenerate: false
+            });
+            if (gen?.package_id) {
+              const detailed = await api.get(`/jobhunt/documents/packages/${gen.package_id}`);
+              setActivePkg(detailed);
+              setResumeMd(detailed.tailored_resume_markdown || '');
+              setCoverLetterMd(detailed.tailored_cover_letter_markdown || '');
+              loadEvents(detailed.application_id);
+              const refreshed = await api.get('/jobhunt/documents/packages');
+              setPackages(Array.isArray(refreshed) ? refreshed : []);
+            } else {
+              setActivePkg(null);
+            }
+          } catch (e) {
+            console.warn('Auto-generation on company selection failed:', e);
+            setActivePkg(null);
+          } finally {
+            setGenerating(false);
+          }
         }
       } else if (pkgList.length > 0) {
         // If no oppId is in URL, auto-load the first available tailored package for instant viewing
