@@ -167,7 +167,21 @@ export default function JobHuntOpportunities() {
 
   useEffect(() => { load(); loadOrgs(); }, []);
 
-  async function load() {
+  async function loadDashboardMeta() {
+    try {
+      const dashData = await api.get('/jobhunt/opportunities/dashboard');
+      if (dashData?.category_counts) {
+        setCategoryCounts(dashData.category_counts);
+      }
+      if (dashData?.countries) {
+        setAvailableCountries(dashData.countries);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  async function loadOpps() {
     setLoading(true);
     const params = new URLSearchParams();
     params.set('is_archived', archiveFilter);
@@ -185,22 +199,18 @@ export default function JobHuntOpportunities() {
     else if (sort === 'posted') params.set('sort', 'posted');
 
     try {
-      const [oppsData, dashData] = await Promise.all([
-        api.get(`/jobhunt/opportunities?${params.toString()}`),
-        api.get('/jobhunt/opportunities/dashboard')
-      ]);
+      const oppsData = await api.get(`/jobhunt/opportunities?${params.toString()}`);
       setItems(oppsData);
-      if (dashData?.category_counts) {
-        setCategoryCounts(dashData.category_counts);
-      }
-      if (dashData?.countries) {
-        setAvailableCountries(dashData.countries);
-      }
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
     }
+  }
+
+  function load() {
+    loadOpps();
+    loadDashboardMeta();
   }
 
   async function handleApply(opp) {
@@ -291,7 +301,7 @@ export default function JobHuntOpportunities() {
   }
 
   // Reload when filters change
-  useEffect(() => { load(); }, [archiveFilter, activeCategoryGroup, countryFilter, recFilter, typeFilter, catFilter, sort, includeIgnored, postedWithin, deadlineFilter]);
+  useEffect(() => { loadOpps(); }, [archiveFilter, activeCategoryGroup, countryFilter, recFilter, typeFilter, catFilter, sort, includeIgnored, postedWithin, deadlineFilter]);
 
   async function submit(e) {
     e.preventDefault();
