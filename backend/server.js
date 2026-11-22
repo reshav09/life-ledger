@@ -1,4 +1,5 @@
 const express = require('express');
+const compression = require('compression');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const helmet = require('helmet');
@@ -18,6 +19,9 @@ const PORT = process.env.PORT || 4000;
 
 // Trust reverse proxy (Render, Cloudflare, etc.) for client IP detection in rate limiting
 app.set('trust proxy', 1);
+
+// ── HTTP response compression (gzip/deflate) ──
+app.use(compression());
 
 // ── Structured request logging ──
 app.use(requestLogger);
@@ -269,11 +273,14 @@ app.use('/api', errorHandler);
 // ── Serve the built frontend ──
 const frontendDist = path.join(__dirname, 'public');
 app.use(express.static(frontendDist, {
+  maxAge: '1y',
   setHeaders: (res, filePath) => {
     if (filePath.endsWith('index.html')) {
       res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
       res.setHeader('Pragma', 'no-cache');
       res.setHeader('Expires', '0');
+    } else {
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
     }
   }
 }));

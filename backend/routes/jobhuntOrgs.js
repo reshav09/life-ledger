@@ -8,11 +8,26 @@ router.get('/', async (req, res) => {
     const { sector, org_type, is_active, parent_id, q, category_group, country, visa_sponsored } = req.query;
     let sql = `
       SELECT o.*,
-        (SELECT COUNT(*) FROM jobhunt_organizations c WHERE c.parent_org_id = o.id) AS child_count,
-        (SELECT COUNT(*) FROM jobhunt_opportunities op WHERE op.org_id = o.id AND op.is_archived = 0) AS active_opps_count,
-        (SELECT GROUP_CONCAT(DISTINCT op.category_group) FROM jobhunt_opportunities op WHERE op.org_id = o.id AND op.is_archived = 0) AS opportunity_categories,
-        (SELECT GROUP_CONCAT(DISTINCT op.country) FROM jobhunt_opportunities op WHERE op.org_id = o.id AND op.is_archived = 0) AS opportunity_countries
+        COALESCE(ch.child_count, 0) AS child_count,
+        COALESCE(opp.active_opps_count, 0) AS active_opps_count,
+        opp.opportunity_categories,
+        opp.opportunity_countries
       FROM jobhunt_organizations o
+      LEFT JOIN (
+        SELECT parent_org_id, COUNT(*) AS child_count
+        FROM jobhunt_organizations
+        WHERE parent_org_id IS NOT NULL
+        GROUP BY parent_org_id
+      ) ch ON ch.parent_org_id = o.id
+      LEFT JOIN (
+        SELECT org_id,
+          COUNT(*) AS active_opps_count,
+          GROUP_CONCAT(DISTINCT category_group) AS opportunity_categories,
+          GROUP_CONCAT(DISTINCT country) AS opportunity_countries
+        FROM jobhunt_opportunities
+        WHERE is_archived = 0
+        GROUP BY org_id
+      ) opp ON opp.org_id = o.id
     `;
     const conditions = [];
     const params = [];

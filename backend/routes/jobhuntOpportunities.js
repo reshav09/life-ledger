@@ -158,50 +158,85 @@ async function getRadarOpportunities({ filter = 'all', category_group = '', sect
   return { rows, total_matches };
 }
 
+// ── In-memory fast cache for dashboard aggregations (30s TTL) ──
+let dashboardCache = {};
+let dashboardCacheTime = 0;
+const DASHBOARD_CACHE_TTL = 30 * 1000;
+
+function invalidateDashboardCache() {
+  dashboardCache = {};
+  dashboardCacheTime = 0;
+}
+
 // ── Dashboard aggregation ──
 router.get('/dashboard', async (req, res) => {
   try {
+    const { filter = 'all', category_group = '', sector = '', limit = 50 } = req.query;
+    const cacheKey = `${filter}:${category_group}:${sector}:${limit}`;
+    const nowTs = Date.now();
+    if (dashboardCache[cacheKey] && (nowTs - dashboardCacheTime < DASHBOARD_CACHE_TTL)) {
+      return res.json(dashboardCache[cacheKey]);
+    }
+
     const verifiedCondition = "op.is_archived = 0 AND op.is_verified_active = 1 AND (op.is_active_link != 0 OR op.is_active_link IS NULL) AND (op.visa_sponsored = 0 OR op.visa_sponsored IS NULL) AND (op.category_group != 'quant_hft' OR op.category_group IS NULL) AND (op.country = 'India' OR op.location LIKE '%India%' OR op.location LIKE '%Remote%' OR op.location LIKE '%Anywhere%' OR op.country IS NULL) AND (op.ctc_min >= 500000 OR op.ctc_max >= 500000 OR (op.ctc_min IS NULL AND op.ctc_max IS NULL))";
-    const [total] = await pool.query(`SELECT COUNT(*) AS cnt FROM jobhunt_opportunities op WHERE ${verifiedCondition}`);
-    const [applyNow] = await pool.query(`SELECT COUNT(*) AS cnt FROM jobhunt_opportunities op WHERE op.recommendation = 'apply_now' AND ${verifiedCondition}`);
-    const [worthApplying] = await pool.query(`SELECT COUNT(*) AS cnt FROM jobhunt_opportunities op WHERE op.recommendation = 'worth_applying' AND ${verifiedCondition}`);
-    const [investigate] = await pool.query(`SELECT COUNT(*) AS cnt FROM jobhunt_opportunities op WHERE op.recommendation = 'investigate' AND ${verifiedCondition}`);
-    const [appliedCnt] = await pool.query(`SELECT COUNT(*) AS cnt FROM jobhunt_opportunities op WHERE (op.is_applied = 1 OR op.id IN (SELECT DISTINCT opportunity_id FROM applications WHERE opportunity_id IS NOT NULL AND status IN ('applied', 'interview', 'offer', 'rejected', 'cleared'))) AND ${verifiedCondition}`);
+    const nowStr = new Date().toISOString().slice(0, 10);
 
-    const now = new Date().toISOString().slice(0, 10);
-    const [d7] = await pool.query(`SELECT COUNT(*) AS cnt FROM jobhunt_opportunities op WHERE op.application_deadline BETWEEN ? AND DATE_ADD(?, INTERVAL 7 DAY) AND ${verifiedCondition}`, [now, now]);
-    const [d14] = await pool.query(`SELECT COUNT(*) AS cnt FROM jobhunt_opportunities op WHERE op.application_deadline BETWEEN ? AND DATE_ADD(?, INTERVAL 14 DAY) AND ${verifiedCondition}`, [now, now]);
-    const [d30] = await pool.query(`SELECT COUNT(*) AS cnt FROM jobhunt_opportunities op WHERE op.application_deadline BETWEEN ? AND DATE_ADD(?, INTERVAL 30 DAY) AND ${verifiedCondition}`, [now, now]);
+    const [aggResult, catResult, sectorResult, countryResult, radarResult, recentResult] = await Promise.all([
+      pool.query(`
+        SELECT 
+          COUNT(*) AS total,
+          COUNT(CASE WHEN op.recommendation = 'apply_now' THEN 1 END) AS apply_now,
+          COUNT(CASE WHEN op.recommendation = 'worth_applying' THEN 1 END) AS worth_applying,
+          COUNT(CASE WHEN op.recommendation = 'investigate' THEN 1 END) AS investigate,
+          COUNT(CASE WHEN (op.is_applied = 1 OR op.id IN (SELECT DISTINCT opportunity_id FROM applications WHERE opportunity_id IS NOT NULL AND status IN ('applied', 'interview', 'offer', 'rejected', 'cleared'))) THEN 1 END) AS applied_cnt,
+          COUNT(CASE WHEN op.application_deadline BETWEEN ? AND DATE_ADD(?, INTERVAL 7 DAY) THEN 1 END) AS d7,
+          COUNT(CASE WHEN op.application_deadline BETWEEN ? AND DATE_ADD(?, INTERVAL 14 DAY) THEN 1 END) AS d14,
+          COUNT(CASE WHEN op.application_deadline BETWEEN ? AND DATE_ADD(?, INTERVAL 30 DAY) THEN 1 END) AS d30,
+          COUNT(CASE WHEN (op.recommendation != 'ignore' OR op.recommendation IS NULL) AND (op.eligibility_pct IS NULL OR op.eligibility_pct > 0) AND (op.location LIKE '%Remote%' OR op.location LIKE '%Anywhere%' OR op.country LIKE '%Remote%') THEN 1 END) AS remote_cnt
+        FROM jobhunt_opportunities op
+        WHERE ${verifiedCondition}
+      `, [nowStr, nowStr, nowStr, nowStr, nowStr, nowStr]),
+      pool.query(`
+        SELECT op.category_group, COUNT(*) AS cnt
+        FROM jobhunt_opportunities op
+        WHERE ${verifiedCondition} AND (op.recommendation != 'ignore' OR op.recommendation IS NULL) AND (op.eligibility_pct IS NULL OR op.eligibility_pct > 0)
+        GROUP BY op.category_group
+      `),
+      pool.query(`
+        SELECT o.sector, COUNT(*) AS cnt
+        FROM jobhunt_opportunities op
+        LEFT JOIN jobhunt_organizations o ON op.org_id = o.id
+        WHERE ${verifiedCondition}
+        GROUP BY o.sector ORDER BY cnt DESC
+      `),
+      pool.query(`
+        SELECT DISTINCT op.country
+        FROM jobhunt_opportunities op
+        WHERE ${verifiedCondition} AND op.country IS NOT NULL AND op.country != ''
+        ORDER BY op.country ASC
+      `),
+      getRadarOpportunities({ filter, category_group, sector, limit }),
+      pool.query(`
+        SELECT op.*, org.name AS org_name, org.careers_url AS org_careers_url, org.website AS org_website,
+          (SELECT a.status FROM applications a WHERE (a.opportunity_id = op.id OR (a.role = op.title AND a.name = org.name)) AND a.status IN ('applied', 'interview', 'offer', 'rejected', 'cleared') ORDER BY a.id DESC LIMIT 1) AS application_status,
+          (SELECT a.id FROM applications a WHERE (a.opportunity_id = op.id OR (a.role = op.title AND a.name = org.name)) AND a.status IN ('applied', 'interview', 'offer', 'rejected', 'cleared') ORDER BY a.id DESC LIMIT 1) AS application_id
+        FROM jobhunt_opportunities op
+        LEFT JOIN jobhunt_organizations org ON op.org_id = org.id
+        WHERE ${verifiedCondition}
+        ORDER BY op.opportunity_score DESC, op.discovered_at DESC
+        LIMIT 5
+      `)
+    ]);
 
-    const [sectorBreakdown] = await pool.query(
-      `SELECT o.sector, COUNT(*) AS cnt
-       FROM jobhunt_opportunities op
-       LEFT JOIN jobhunt_organizations o ON op.org_id = o.id
-       WHERE ${verifiedCondition}
-       GROUP BY o.sector ORDER BY cnt DESC`
-    );
-
-    const [catRows] = await pool.query(
-      `SELECT op.category_group, COUNT(*) AS cnt
-       FROM jobhunt_opportunities op
-       WHERE ${verifiedCondition} AND (op.recommendation != 'ignore' OR op.recommendation IS NULL) AND (op.eligibility_pct IS NULL OR op.eligibility_pct > 0)
-       GROUP BY op.category_group`
-    );
-    const [remoteRow] = await pool.query(
-      `SELECT COUNT(*) AS cnt
-       FROM jobhunt_opportunities op
-       WHERE ${verifiedCondition} AND (op.recommendation != 'ignore' OR op.recommendation IS NULL) AND (op.eligibility_pct IS NULL OR op.eligibility_pct > 0)
-       AND (op.location LIKE '%Remote%' OR op.location LIKE '%Anywhere%' OR op.country LIKE '%Remote%')`
-    );
-    const [countryRows] = await pool.query(
-      `SELECT DISTINCT op.country
-       FROM jobhunt_opportunities op
-       WHERE ${verifiedCondition} AND op.country IS NOT NULL AND op.country != ''
-       ORDER BY op.country ASC`
-    );
+    const statsRow = aggResult[0][0] || {};
+    const catRows = catResult[0] || [];
+    const sectorBreakdown = sectorResult[0] || [];
+    const countryRows = countryResult[0] || [];
+    const { rows: topOpps, total_matches } = radarResult;
+    const recentOpps = recentResult[0] || [];
 
     const categoryCounts = {
-      all: total[0].cnt,
+      all: statsRow.total || 0,
       startup: 0,
       research_internship: 0,
       psu: 0,
@@ -209,7 +244,7 @@ router.get('/dashboard', async (req, res) => {
       private_in: 0,
       service_tech: 0,
       research: 0,
-      remote: remoteRow[0]?.cnt || 0,
+      remote: statsRow.remote_cnt || 0,
       'research,research_internship': 0,
       'private_in,service_tech': 0
     };
@@ -221,30 +256,16 @@ router.get('/dashboard', async (req, res) => {
     categoryCounts['research,research_internship'] = (categoryCounts['research'] || 0) + (categoryCounts['research_internship'] || 0);
     categoryCounts['private_in,service_tech'] = (categoryCounts['private_in'] || 0) + (categoryCounts['service_tech'] || 0);
 
-    const { filter = 'all', category_group = '', sector = '', limit = 50 } = req.query;
-    const { rows: topOpps, total_matches } = await getRadarOpportunities({ filter, category_group, sector, limit });
-
-    const [recentOpps] = await pool.query(
-      `SELECT op.*, org.name AS org_name, org.careers_url AS org_careers_url, org.website AS org_website,
-         (SELECT a.status FROM applications a WHERE (a.opportunity_id = op.id OR (a.role = op.title AND a.name = org.name)) AND a.status IN ('applied', 'interview', 'offer', 'rejected', 'cleared') ORDER BY a.id DESC LIMIT 1) AS application_status,
-         (SELECT a.id FROM applications a WHERE (a.opportunity_id = op.id OR (a.role = op.title AND a.name = org.name)) AND a.status IN ('applied', 'interview', 'offer', 'rejected', 'cleared') ORDER BY a.id DESC LIMIT 1) AS application_id
-       FROM jobhunt_opportunities op
-       LEFT JOIN jobhunt_organizations org ON op.org_id = org.id
-       WHERE ${verifiedCondition}
-       ORDER BY op.opportunity_score DESC, op.discovered_at DESC
-       LIMIT 5`
-    );
-
-    res.json({
+    const payload = {
       stats: {
-        total: total[0].cnt,
-        apply_now: applyNow[0].cnt,
-        worth_applying: worthApplying[0].cnt,
-        investigate: investigate[0].cnt,
-        applied: appliedCnt[0].cnt,
-        deadlines_7d: d7[0].cnt,
-        deadlines_14d: d14[0].cnt,
-        deadlines_30d: d30[0].cnt
+        total: statsRow.total || 0,
+        apply_now: statsRow.apply_now || 0,
+        worth_applying: statsRow.worth_applying || 0,
+        investigate: statsRow.investigate || 0,
+        applied: statsRow.applied_cnt || 0,
+        deadlines_7d: statsRow.d7 || 0,
+        deadlines_14d: statsRow.d14 || 0,
+        deadlines_30d: statsRow.d30 || 0
       },
       category_counts: categoryCounts,
       countries: countryRows.map(r => r.country),
@@ -252,7 +273,15 @@ router.get('/dashboard', async (req, res) => {
       top_opportunities: topOpps,
       total_matches,
       recent_opportunities: recentOpps
-    });
+    };
+
+    if (nowTs - dashboardCacheTime >= DASHBOARD_CACHE_TTL) {
+      dashboardCache = {};
+      dashboardCacheTime = nowTs;
+    }
+    dashboardCache[cacheKey] = payload;
+
+    res.json(payload);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -269,11 +298,17 @@ router.get('/top', async (req, res) => {
   }
 });
 
+let lastLifecycleRun = 0;
+const LIFECYCLE_INTERVAL = 30 * 60 * 1000;
+
 // ── List opportunities ──
 router.get('/', async (req, res) => {
   try {
-    // Automatically purge expired deadlines & archive stale private/govt posts before listing
-    await runOpportunitiesLifecycle();
+    // Automatically purge expired deadlines & archive stale private/govt posts periodically (non-blocking)
+    if (Date.now() - lastLifecycleRun > LIFECYCLE_INTERVAL) {
+      lastLifecycleRun = Date.now();
+      runOpportunitiesLifecycle().catch(err => console.error('[lifecycle error]:', err));
+    }
 
     const {
       recommendation, job_type, category, is_archived, q, sort,
@@ -557,6 +592,7 @@ router.post('/', async (req, res) => {
 
     // Auto-score
     const scored = await scoreAndPersist(result.insertId);
+    invalidateDashboardCache();
     res.json({ id: result.insertId, ...scored });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -621,6 +657,7 @@ router.put('/:id', async (req, res) => {
 
     // Re-score
     const scored = await scoreAndPersist(req.params.id);
+    invalidateDashboardCache();
     res.json({ success: true, ...scored });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -795,6 +832,7 @@ router.post('/:id/apply', async (req, res) => {
 
     await syncOpportunityState(pool,oppId);
     if(!existing[0] || existing[0].status!==appStatus)await recordStatus(pool,applicationId,appStatus);
+    invalidateDashboardCache();
 
     res.json({
       success: true,
@@ -821,6 +859,7 @@ router.post('/:id/unapply', async (req, res) => {
     } else {
       await pool.query('UPDATE applications SET opportunity_id = NULL WHERE opportunity_id = ?', [oppId]);
     }
+    invalidateDashboardCache();
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -878,6 +917,7 @@ router.post('/:id/mark-status', async (req, res) => {
 
     await syncOpportunityState(pool,oppId);
     if(!apps[0] || apps[0].status!==status)await recordStatus(pool,applicationId,status);
+    invalidateDashboardCache();
     res.json({
       success: true,
       application_id: applicationId,

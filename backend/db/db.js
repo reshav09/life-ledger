@@ -17,7 +17,9 @@ function createDbPool() {
       waitForConnections: true,
       connectionLimit: 10,
       queueLimit: 0,
-      decimalNumbers: true
+      decimalNumbers: true,
+      enableKeepAlive: true,
+      keepAliveInitialDelay: 10000
     });
   }
 
@@ -30,7 +32,9 @@ function createDbPool() {
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0,
-    decimalNumbers: true
+    decimalNumbers: true,
+    enableKeepAlive: true,
+    keepAliveInitialDelay: 10000
   });
 }
 
